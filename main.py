@@ -1,14 +1,13 @@
-import search_values
-
+from validation.seach_values import execute_search
+from validation.testing import mock_data
 
 def main():
 
     print("Main Data Validator")
 
-    # ACTION 1: Search IDs or any other value
-    input_value = list(input("Please enter value(s) to search in a list form"))
-    search_values.execute_search(input_value)
-
+    #-- EXTRA ACTION: SEARCH
+    input_value = ['ABC', 'CBA']        # TODO: Change these values for real IDs or value to search.
+    execute_search(input_value)
 
 if __name__ == "__main__":
     main()
