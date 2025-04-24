@@ -1,4 +1,2 @@
-pyyalm
-os
 pandas
-sqlite3
+pyyaml

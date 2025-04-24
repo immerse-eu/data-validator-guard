@@ -1,5 +1,5 @@
 import sqlite3
-import yalm
+import yaml
 
 
 def read_config(category, path):
