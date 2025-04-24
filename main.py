@@ -5,6 +5,10 @@ def main():
 
     print("Main Data Validator")
 
+    # -- STEP 1. Generate "Mock" data
+    df = mock_data.generate_df()
+    print(df)
+
     #-- EXTRA ACTION: SEARCH
     input_value = ['ABC', 'CBA']        # TODO: Change these values for real IDs or value to search.
     execute_search(input_value)
