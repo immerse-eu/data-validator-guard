@@ -1,30 +1,38 @@
-from validation.seach_values import execute_search
-from validation.testing import mock_data
+import sqlite3
+import pandas as pd
+import yaml
 from validation.general_validation import DataValidator
+from validation.maganamed_validation import VALID_SITE_CODES_AND_CENTER_NAMES
 
-VALID_CITIES = {"New York", "London", "Paris"}
+
+with open("./config/config.yaml", "r", encoding="utf-8") as f:
+    config = yaml.safe_load(f)
+
+DB_PATH = config['researchDB']['db_path']
+
+
+def connect_and_fetch_table(table_name):
+    sql_connection = sqlite3.connect(DB_PATH)
+    try:
+        query = f"SELECT * FROM `{table_name}`"
+        df = pd.read_sql_query(query, sql_connection)
+    finally:
+        sql_connection.close()
+    return df
+
 
 def main():
 
-    print("Main Data Validator")
+    # -- MAGANAMED
+    print("Runnnig Maganamed Validation")
 
-    # -- STEP 1. Generate "Mock" data
-    df = mock_data.generate_df()
-    print(df)
+    read_df = connect_and_fetch_table("Kind-of-participant")
+    general_magana_validation = DataValidator(read_df)
 
-    # -- STEP 2. Run a general validation: typos, and duplicates
-    validator = DataValidator(df)
+    valid_center_names = VALID_SITE_CODES_AND_CENTER_NAMES.values()
+    general_magana_validation.check_typos(column="center_name", dictionary=valid_center_names)
 
-    duplicates = validator.check_duplicates(df)
-    print("\n Duplicates found: ", duplicates)
-
-    typos = validator.check_typos(column="city", dictionary=VALID_CITIES)
-    print("\n Typos found: ", typos)
-
-    report = validator.report()
-    print("\n Report: ", report)
-
-    # -- EXTRA ACTION: SEARCH
+    # # -- EXTRA ACTION: SEARCH
     # input_value = ['ABC', 'CBA']        # TODO: Change these values for real IDs or value to search.
     # execute_search(input_value)
 
