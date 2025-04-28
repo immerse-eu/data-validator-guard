@@ -2,7 +2,7 @@ import sqlite3
 import pandas as pd
 import yaml
 from validation.general_validation import DataValidator
-from validation.maganamed_validation import VALID_SITE_CODES_AND_CENTER_NAMES
+from validation.maganamed_validation import VALID_SITE_CODES_AND_CENTER_NAMES, MaganamedValidation
 
 
 with open("./config/config.yaml", "r", encoding="utf-8") as f:
@@ -28,9 +28,19 @@ def main():
 
     read_df = connect_and_fetch_table("Kind-of-participant")
     general_magana_validation = DataValidator(read_df)
+    rules_magana_validation = MaganamedValidation(read_df)
+
 
     valid_center_names = VALID_SITE_CODES_AND_CENTER_NAMES.values()
-    general_magana_validation.check_typos(column="center_name", dictionary=valid_center_names)
+    first_control = general_magana_validation.check_typos(column="center_name", dictionary=valid_center_names)
+
+    if first_control is not None:
+        rules_magana_validation.validate_site_and_center_name_id(
+            control = valid_center_names,
+            site_column = "Site",
+            center_name_column = "center_name",
+            study_id_column="participant_identifier",
+        )
 
     # # -- EXTRA ACTION: SEARCH
     # input_value = ['ABC', 'CBA']        # TODO: Change these values for real IDs or value to search.
