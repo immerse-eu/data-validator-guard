@@ -11,8 +11,17 @@ class DataValidator:
         return duplicates
 
     def check_typos(self, column, dictionary):
-        typos = self.df[~self.df[column].isin(dictionary)]
+        self.df[column] = self.df[column].str.strip().str.lower()
+        clean_dictionary = [item.strip().lower() for item in dictionary]
+
+        typos = self.df[~self.df[column].isin(clean_dictionary)]
         self.issues["typos"] = typos
+
+        if not typos.empty:
+            print(f"Typos found in column '{column}':")
+            print(typos[[column]])
+        else:
+            print(f"\n Validation passed : No typos found in column '{column}'.")
         return typos
 
     def report(self):
