@@ -8,6 +8,11 @@ class DataValidator:
     def check_duplicates(self, subset):
         duplicates = self.df[self.df.duplicated(subset=subset)]
         self.issues["duplicates"] = duplicates
+
+        if duplicates.empty:
+            print(f"\n ✔ | Validation of duplications passed: No duplications found in column '{subset}'.")
+        else:
+            print(f"\n❌ | Duplicated values found in column '{subset}':")
         return duplicates
 
     def check_typos(self, column, dictionary):
@@ -17,11 +22,11 @@ class DataValidator:
         typos = self.df[~self.df[column].isin(clean_dictionary)]
         self.issues["typos"] = typos
 
-        if not typos.empty:
+        if  typos.empty:
+            print(f"\n ✔ | Validation of typos passed: No typos found in column '{column}'.")
+        else:
             print(f"\n❌ | Typos found in column '{column}':")
             print(typos[[column]])
-        else:
-            print(f"\n ✔ | Validation of typos passed: No typos found in column '{column}'.")
         return typos
 
     def report(self):

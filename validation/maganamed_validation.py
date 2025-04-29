@@ -31,11 +31,11 @@ class MaganamedValidation:
         filter_id_issues = results[results.validation_IDs_result == 'ID-mismatch']
 
         if not filter_id_issues.empty:
-            print(f"❌ | Issues found in IDS:\n'{filter_id_issues}")
+            print(f"\n❌ | Issues found in IDS:\n'{filter_id_issues}")
             issues.append(filter_id_issues)
             # filter_id_issues.to_csv('maganamed_validation_id_issues.csv', index=False)
         else:
-            print(" ✔ | Validation of IDS passed: Not issues in IDS found! }")
+            print("\n ✔ | Validation of IDS passed: Not issues in IDS found! }")
 
         # Validation of Site
         self.magana_df[site_column] = self.magana_df[site_column]
@@ -46,11 +46,11 @@ class MaganamedValidation:
         filter_site_issues = site_issues[site_issues['site_results'] == 'Site-mismatch']
 
         if not site_issues.empty:
-            print(f"❌ | Issues found in Site column :\n'{filter_site_issues}")
+            print(f"\n❌ | Issues found in Site column :\n'{filter_site_issues}")
             issues.append(filter_site_issues)
             # filter_site_issues.to_csv('maganamed_validation_site_issues.csv', index=False)
         else:
-            print(" ✔ | Validation of IDS passed: No issues in 'Site' found! }")
+            print("\n✔ | Validation of IDS passed: No issues in 'Site' found! }")
 
     def special_duplication_types(self, column):
         issues = []
@@ -67,12 +67,12 @@ class MaganamedValidation:
 
         filter_issues = self.magana_df[self.magana_df['is_duplicate'] == True]
         if filter_issues.empty:
-            print(f" ✔ | Validation of special duplications passed: No duplications found in column '{column}'! '")
+            print(f"\n ✔ | Validation of special duplications passed: No duplications found in column '{column}'! '")
         else:
-            print(f"❌ | Issues found in '{column}' column :\n'{filter_issues}")
+            print(f"\n❌ | Issues found in '{column}' column :\n'{filter_issues}")
             issues.append(filter_issues)
             return issues
 
-        print("Additional observations: \n", filter_normalised_column_with_additional_characters)
+        print("\nAdditional observations: \n", filter_normalised_column_with_additional_characters)
 
 
