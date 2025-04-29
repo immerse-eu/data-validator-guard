@@ -1,3 +1,5 @@
+from validation.general_validation import DataValidator
+
 VALID_SITE_CODES_AND_CENTER_NAMES = {
         1: 'Lothian',
         2: 'Camhs',
@@ -31,6 +33,7 @@ class MaganamedValidation:
         if not filter_id_issues.empty:
             print(f"❌ | Issues found in IDS:\n'{filter_id_issues}")
             issues.append(filter_id_issues)
+            # filter_id_issues.to_csv('maganamed_validation_id_issues.csv', index=False)
         else:
             print(" ✔ | Validation of IDS passed: Not issues in IDS found! }")
 
@@ -45,5 +48,31 @@ class MaganamedValidation:
         if not site_issues.empty:
             print(f"❌ | Issues found in Site column :\n'{filter_site_issues}")
             issues.append(filter_site_issues)
+            # filter_site_issues.to_csv('maganamed_validation_site_issues.csv', index=False)
         else:
             print(" ✔ | Validation of IDS passed: No issues in 'Site' found! }")
+
+    def special_duplication_types(self, column):
+        issues = []
+
+        general_validator = DataValidator(self.magana_df)
+        general_validator.check_duplicates(column)
+
+        normalised_column = self.magana_df[column].str.strip()
+        filter_normalised_column_with_additional_characters = normalised_column[
+            normalised_column.str.contains(r'[_-]?v', case=False, regex=True)]
+
+        self.magana_df['normalised_column'] = self.magana_df[column].str.replace(r'[_-]?v$', '', case=False, regex=True)
+        self.magana_df['is_duplicate'] = self.magana_df['normalised_column'].duplicated(keep=False)
+
+        filter_issues = self.magana_df[self.magana_df['is_duplicate'] == True]
+        if filter_issues.empty:
+            print(f" ✔ | Validation of special duplications passed: No duplications found in column '{column}'! '")
+        else:
+            print(f"❌ | Issues found in '{column}' column :\n'{filter_issues}")
+            issues.append(filter_issues)
+            return issues
+
+        print("Additional observations: \n", filter_normalised_column_with_additional_characters)
+
+
