@@ -9,6 +9,7 @@ with open("./config/config.yaml", "r", encoding="utf-8") as f:
     config = yaml.safe_load(f)
 
 DB_PATH = config['researchDB']['db_path']
+CSRI_list = ["CSRI", "CSRI_GE", "CSRI_BE", "CSRI_SK"]
 
 
 def connect_and_fetch_table(table_name):
@@ -26,9 +27,10 @@ def main():
     # -- MAGANAMED
     print("Runnning Maganamed Validation")
 
-    read_df = connect_and_fetch_table("Kind-of-participant")
-    general_magana_validation = DataValidator(read_df)
-    rules_magana_validation = MaganamedValidation(read_df)
+    # -- Rule 1:
+    read_kind_participants_df = connect_and_fetch_table("Kind-of-participant")
+    general_magana_validation = DataValidator(read_kind_participants_df)
+    rules_magana_validation = MaganamedValidation(read_kind_participants_df)
 
 
     valid_center_names = VALID_SITE_CODES_AND_CENTER_NAMES.values()
@@ -40,6 +42,20 @@ def main():
             site_column = "Site",
             center_name_column = "center_name",
             study_id_column="participant_identifier",
+        )
+
+    # -- Rule 2:
+    for csri_table in CSRI_list:
+        read_csri_df = connect_and_fetch_table(csri_table)
+        general_magana_validation = DataValidator(read_csri_df)
+        rules_magana_validation = MaganamedValidation(read_csri_df)
+
+        print(f"\n\033[34mTable {csri_table} overview :\033[0m\n")
+        general_magana_validation.check_typos(column="center_name", dictionary=valid_center_names)
+        rules_magana_validation.validate_site_and_center_name_id(
+            site_column = "SiteCode",
+            center_name_column = "center_name",
+            study_id_column="participant_identifier"
         )
 
     # # -- EXTRA ACTION: SEARCH
