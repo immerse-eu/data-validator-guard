@@ -35,6 +35,7 @@ def main():
     first_control = general_magana_validation.check_typos(column="center_name", dictionary=valid_center_names)
 
     if first_control is not None:
+        rules_magana_validation.special_duplication_types(column="participant_identifier")
         rules_magana_validation.validate_site_and_center_name_id(
             site_column = "Site",
             center_name_column = "center_name",
