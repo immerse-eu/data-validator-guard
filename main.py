@@ -24,7 +24,7 @@ def connect_and_fetch_table(table_name):
 def main():
 
     # -- MAGANAMED
-    print("Runnnig Maganamed Validation")
+    print("Runnning Maganamed Validation")
 
     read_df = connect_and_fetch_table("Kind-of-participant")
     general_magana_validation = DataValidator(read_df)
@@ -36,7 +36,6 @@ def main():
 
     if first_control is not None:
         rules_magana_validation.validate_site_and_center_name_id(
-            control = valid_center_names,
             site_column = "Site",
             center_name_column = "center_name",
             study_id_column="participant_identifier",
