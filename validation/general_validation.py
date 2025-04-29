@@ -18,10 +18,10 @@ class DataValidator:
         self.issues["typos"] = typos
 
         if not typos.empty:
-            print(f"Typos found in column '{column}':")
+            print(f"\n❌ | Typos found in column '{column}':")
             print(typos[[column]])
         else:
-            print(f"\n Validation passed : No typos found in column '{column}'.")
+            print(f"\n ✔ | Validation of typos passed: No typos found in column '{column}'.")
         return typos
 
     def report(self):
