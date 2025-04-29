@@ -32,7 +32,7 @@ class MaganamedValidation:
             print(f"❌ | Issues found in IDS:\n'{filter_id_issues}")
             issues.append(filter_id_issues)
         else:
-            print(" ✔ | Validation of IDS passed: No typos found! }")
+            print(" ✔ | Validation of IDS passed: Not issues in IDS found! }")
 
         # Validation of Site
         self.magana_df[site_column] = self.magana_df[site_column]
@@ -46,4 +46,4 @@ class MaganamedValidation:
             print(f"❌ | Issues found in Site column :\n'{filter_site_issues}")
             issues.append(filter_site_issues)
         else:
-            print(" ✔ | Validation of IDS passed: No typos found! }")
+            print(" ✔ | Validation of IDS passed: No issues in 'Site' found! }")
