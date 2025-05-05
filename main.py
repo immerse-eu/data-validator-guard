@@ -6,6 +6,7 @@ from validation.general_validation import DataValidator
 from validation.maganamed_validation import VALID_SITE_CODES_AND_CENTER_NAMES, MaganamedValidation, import_custom_csr_df_with_language_selection
 
 CSRI_list = ["CSRI", "CSRI_GE", "CSRI_BE", "CSRI_SK"]
+valid_center_names = VALID_SITE_CODES_AND_CENTER_NAMES.values()
 
 def load_config_file(directory, file):
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -30,7 +31,6 @@ def run_rule_one(filename):
     general_magana_validation = DataValidator(filename)
     rules_magana_validation = MaganamedValidation(filename)
 
-    valid_center_names = VALID_SITE_CODES_AND_CENTER_NAMES.values()
     first_control = general_magana_validation.check_typos(column="center_name", dictionary=valid_center_names)
 
     if first_control is not None:
