@@ -26,17 +26,9 @@ def connect_and_fetch_table(table_name):
         sql_connection.close()
     return df
 
-
-def main():
-
-    # -- MAGANAMED
-    print("Runnning Maganamed Validation")
-
-    # # -- Rule 1:
-    read_kind_participants_df = connect_and_fetch_table("Kind-of-participant")
-    general_magana_validation = DataValidator(read_kind_participants_df)
-    rules_magana_validation = MaganamedValidation(read_kind_participants_df)
-
+def run_rule_one(filename):
+    general_magana_validation = DataValidator(filename)
+    rules_magana_validation = MaganamedValidation(filename)
 
     valid_center_names = VALID_SITE_CODES_AND_CENTER_NAMES.values()
     first_control = general_magana_validation.check_typos(column="center_name", dictionary=valid_center_names)
@@ -44,12 +36,28 @@ def main():
     if first_control is not None:
         rules_magana_validation.validate_special_duplication_types(column="participant_identifier")
         rules_magana_validation.validate_site_and_center_name_id(
-            site_column = "Site",
-            center_name_column = "center_name",
+            site_column="Site",
+            center_name_column="center_name",
             study_id_column="participant_identifier",
         )
 
-    # # -- Rule 2:
+def main():
+
+    # -- MAGANAMED
+    print("Runnning Maganamed Validation")
+
+    # -- Rule 1:
+    read_kind_participants_df = connect_and_fetch_table("Kind-of-participant")
+    run_rule_one(read_kind_participants_df)
+
+    # Control fixed generated file from Rule 1
+    for filename in os.listdir(FIXES_PATH):
+        if "Kind-of-participant" in filename and filename.endswith(".csv"):
+            read_new_kind_participants_df = pd.read_csv(os.path.join(FIXES_PATH, filename))
+            run_rule_one(read_new_kind_participants_df)
+
+
+    # -- Rule 2:
     # Preprocessing:
     crsi_df = import_custom_csr_df_with_language_selection()
     managa_rules_for_crsi_validation = MaganamedValidation(crsi_df)
