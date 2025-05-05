@@ -1,16 +1,21 @@
+import os
 import sqlite3
 import pandas as pd
 import yaml
 from validation.general_validation import DataValidator
-from validation.maganamed_validation import VALID_SITE_CODES_AND_CENTER_NAMES, MaganamedValidation
+from validation.maganamed_validation import VALID_SITE_CODES_AND_CENTER_NAMES, MaganamedValidation, import_custom_csr_df_with_language_selection
 
-
-with open("./config/config.yaml", "r", encoding="utf-8") as f:
-    config = yaml.safe_load(f)
-
-DB_PATH = config['researchDB']['db_path']
 CSRI_list = ["CSRI", "CSRI_GE", "CSRI_BE", "CSRI_SK"]
 
+def load_config_file(directory, file):
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join(base_dir, "config", "config.yaml")
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+        return config[directory][file]
+
+DB_PATH = load_config_file('researchDB','db_path')
+FIXES_PATH = load_config_file('reports','fixes')
 
 def connect_and_fetch_table(table_name):
     sql_connection = sqlite3.connect(DB_PATH)
@@ -27,7 +32,7 @@ def main():
     # -- MAGANAMED
     print("Runnning Maganamed Validation")
 
-    # -- Rule 1:
+    # # -- Rule 1:
     read_kind_participants_df = connect_and_fetch_table("Kind-of-participant")
     general_magana_validation = DataValidator(read_kind_participants_df)
     rules_magana_validation = MaganamedValidation(read_kind_participants_df)
@@ -37,14 +42,24 @@ def main():
     first_control = general_magana_validation.check_typos(column="center_name", dictionary=valid_center_names)
 
     if first_control is not None:
-        rules_magana_validation.special_duplication_types(column="participant_identifier")
+        rules_magana_validation.validate_special_duplication_types(column="participant_identifier")
         rules_magana_validation.validate_site_and_center_name_id(
             site_column = "Site",
             center_name_column = "center_name",
             study_id_column="participant_identifier",
         )
 
-    # -- Rule 2:
+    # # -- Rule 2:
+    # Preprocessing:
+    crsi_df = import_custom_csr_df_with_language_selection()
+    managa_rules_for_crsi_validation = MaganamedValidation(crsi_df)
+    managa_rules_for_crsi_validation.validate_site_and_center_name_id(
+        site_column="Site",
+        center_name_column = "center_name",
+        study_id_column="participant_identifier",
+    )
+
+
     for csri_table in CSRI_list:
         read_csri_df = connect_and_fetch_table(csri_table)
         general_magana_validation = DataValidator(read_csri_df)
