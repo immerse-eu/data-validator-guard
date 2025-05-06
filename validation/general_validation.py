@@ -10,9 +10,9 @@ class DataValidator:
         self.issues["duplicates"] = duplicates
 
         if duplicates.empty:
-            print(f"\n ✔ | Validation of duplications passed: No duplications found in column '{subset}'.")
+            print(f"\n ✔ | Validation of duplications passed: No duplications were found in column '{subset}'.")
         else:
-            print(f"\n❌ | Duplicated values found in column '{subset}':")
+            print(f"\n❌ | Duplicated values have been found in column '{subset}':")
         return duplicates
 
     def check_typos(self, column, dictionary):
@@ -23,11 +23,11 @@ class DataValidator:
         self.issues["typos"] = typos
 
         if  typos.empty:
-            print(f"\n ✔ | Validation of typos passed: No typos found in column '{column}'.")
+            print(f"\n ✔ | Validation of typos passed: No typos were found in column '{column}'.")
         else:
-            print(f"\n❌ | Typos found in column '{column}':")
+            print(f"\n❌ | Typos have been found in column '{column}':")
             print(typos[[column]])
         return typos
 
-    def report(self):
-        return self.issues
+    def passed_validation(self):
+        return len(self.issues) == 0
