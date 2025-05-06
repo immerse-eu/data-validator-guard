@@ -1,7 +1,6 @@
-import os
 import sqlite3
 import pandas as pd
-import yaml
+from config.config_loader import load_config_file
 from validation.general_validation import DataValidator
 from validation.maganamed_validation import (
     VALID_SITE_CODES_AND_CENTER_NAMES, MaganamedValidation, import_custom_csr_df_with_language_selection)
@@ -10,13 +9,6 @@ from cleaning import cleaning_df
 
 CSRI_list = ["CSRI", "CSRI_GE", "CSRI_BE", "CSRI_SK"]
 valid_center_names = VALID_SITE_CODES_AND_CENTER_NAMES.values()
-
-def load_config_file(directory, file):
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join(base_dir, "config", "config.yaml")
-    with open(config_path, "r", encoding="utf-8") as f:
-        config = yaml.safe_load(f)
-        return config[directory][file]
 
 DB_PATH = load_config_file('researchDB','db_path')
 FIXES_PATH = load_config_file('reports','fixes')
@@ -60,7 +52,7 @@ def main():
     else:
         print("FIX general errors before proceeding with validation")
 
-    # -- Rule 2:
+    #  -- Rule 2:
     # Preprocessing:
     crsi_df = import_custom_csr_df_with_language_selection()
     managa_rules_for_crsi_validation = MaganamedValidation(crsi_df)
@@ -69,7 +61,6 @@ def main():
         center_name_column = "center_name",
         study_id_column="participant_identifier",
     )
-
 
     for csri_table in CSRI_list:
         read_csri_df = connect_and_fetch_table(csri_table)
