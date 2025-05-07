@@ -1,7 +1,7 @@
 import os
 import pandas as pd
-from main import connect_and_fetch_table, load_config_file
-
+from main import connect_and_fetch_table
+from config.config_loader import load_config_file
 
 
 CHANGES_FILE_PATH = load_config_file('reports','changes')
@@ -45,4 +45,4 @@ def cleaning_df(modifications_path, fixes_path):
                 fixes_df.to_csv(os.path.join(fixes_path, new_kop_filename), index=False)
                 print("Successfully cleaned file: \n", new_kop_filename)
 
-cleaning_df(CHANGES_FILE_PATH, FIXES_FILE_PATH)
+# cleaning_df(CHANGES_FILE_PATH, FIXES_FILE_PATH)
