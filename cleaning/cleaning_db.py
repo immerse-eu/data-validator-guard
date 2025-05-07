@@ -67,7 +67,7 @@ def cleaning_db(path_db):
     changes_df = changes_df[["participant_identifier", "validation_result", "Expected_value"]]
 
     changes_df_by_id = changes_df[changes_df["validation_result"] == "ID-mismatch"]
-    changes_df_by_center_name = changes_df[changes_df["Expected_value"] == "Camsh"]
+    changes_df_by_center_name = changes_df[changes_df["Expected_value"] == "Camhs"]
     filter_by_int_values = pd.to_numeric(changes_df["Expected_value"], errors='coerce').notna()
     changes_df_by_site = changes_df[filter_by_int_values]
 
