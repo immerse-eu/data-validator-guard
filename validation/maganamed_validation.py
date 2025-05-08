@@ -5,7 +5,7 @@ from validation.general_validation import DataValidator
 
 VALID_SITE_CODES_AND_CENTER_NAMES = {
     1: 'Lothian',   # L0
-    2: 'Camhs',     # L
+    2: 'Camhs',     # L0
     3: 'Mannheim',  # L1
     4: 'Wiesloch',  # L1
     5: 'Leuven',    # L2
@@ -15,10 +15,10 @@ VALID_SITE_CODES_AND_CENTER_NAMES = {
 }
 
 VALID_LANGUAGE_SELECTION = {
-    0: 'English',
-    1: 'German',
-    2: 'Belgian',
-    3: 'Slovak'
+    0: 'EN',
+    1: 'GE',
+    2: 'BE',
+    3: 'SK'
     }
 
 VALID_PARTICIPANTS_TYPE = {
@@ -28,7 +28,9 @@ VALID_PARTICIPANTS_TYPE = {
     3: ['Finance ', 'accounting staff'] # Finance / accounting staff
     }
 
-
+new_keys = list(VALID_SITE_CODES_AND_CENTER_NAMES.values())
+new_values = list(VALID_LANGUAGE_SELECTION.keys())
+VALID_CENTER_AND_LANGUAGE = {k:new_values[i // 2] for i, k in enumerate(new_keys)}
 
 output_csv_path = "validation_issues.csv"
 
@@ -41,6 +43,7 @@ def import_custom_csr_df_with_language_selection():
     df = pd.read_csv(csri)
     new_df = df.drop_duplicates()
     new_df.to_csv("filter_crsi_file.csv", index=False)
+    print(f"\n Length auxiliar-language-csri-file: {new_df.shape[0]} rows")
     return new_df
 
 
@@ -116,8 +119,46 @@ class MaganamedValidation:
 
         print(f"\nAdditional observations from '{column}': \n", filter_normalised_column_with_additional_characters)
 
-    def validate_language_selection(self, column):
-        self.magana_df[column] = self.magana_df[column].str.strip().str.upper()
+    def validate_auxiliar_table(self, study_id_column, center_name_column):
+        # Normalization
+        self.magana_df[study_id_column] = self.magana_df[study_id_column].str.strip()
+        self.magana_df[center_name_column] = self.magana_df[center_name_column].str.strip().str.capitalize()
+        # Validation
+        self.magana_df['language_validation_result'] = self.magana_df.apply(
+            lambda row: 'OK' if VALID_CENTER_AND_LANGUAGE.get(row[center_name_column]) == row[
+                'PARTICIPANT_02'] else 'language-mismatch', axis=1)
+        # Filtering
+        filter_participant_language_val = self.magana_df[[study_id_column,'language_validation_result']]
+        filter_issues = self.magana_df[filter_participant_language_val['language_validation_result'] != 'OK']
+
+        if filter_issues.empty:
+            print(f"\n ✔ | Language validation from 'all_csri_with_languages', successfully passed")
+            return filter_participant_language_val
+        else:
+            print(f"\n❌ | Issues found in '{self}' :\n'{filter_issues}")
+            self.magana_issues.append(filter_issues)
+
+
+    def validate_language_selection(self, table_name):
+        # self.magana_df[study_id_column] = self.magana_df[study_id_column].str.strip()
+        # self.magana_df[center_name_column] = self.magana_df[center_name_column].str.strip().str.capitalize()
+        #
+        # # Validation 1. filename & center_name
+        # self.magana_df['result_filename_and_center_name'] = self.magana_df.apply(
+        #     lambda row: 'OK' if VALID_CENTER_AND_LANGUAGE.get(row[center_name_column]) == row[
+        #         'PARTICIPANT_02'] else 'language-mismatch', axis=1)
+
+        # Validation 2: Table_name and SiteCode
+        if table_name in VALID_LANGUAGE_SELECTION.values():
+            print(f"Coincidences in {table_name} are valid.")
+        else:
+            print(f"Coincidences in {table_name} are not valid.")
+
+
+
+
+
+
 
     def passed_validation(self):
         return len(self.magana_issues) == 0

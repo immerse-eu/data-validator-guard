@@ -12,9 +12,10 @@ valid_center_names = VALID_SITE_CODES_AND_CENTER_NAMES.values()
 
 DB_PATH = load_config_file('researchDB','db_path')
 FIXES_PATH = load_config_file('reports','fixes')
+NEW_DB_PATH = load_config_file('researchDB','cleaned_db')
 
 def connect_and_fetch_table(table_name):
-    sql_connection = sqlite3.connect(DB_PATH)
+    sql_connection = sqlite3.connect(NEW_DB_PATH)
     try:
         query = f"SELECT * FROM `{table_name}`"
         df = pd.read_sql_query(query, sql_connection)
@@ -22,22 +23,38 @@ def connect_and_fetch_table(table_name):
         sql_connection.close()
     return df
 
-def run_general_validation(filename):
-    general_magana_validation = DataValidator(filename)
+def run_general_validation(table):
+    general_magana_validation = DataValidator(table)
     general_magana_validation.check_typos(column="center_name", dictionary=valid_center_names)
-    general_magana_validation.check_duplicates(filename)
+    general_magana_validation.check_duplicates(table)
     general_magana_validation.report()
     is_approved = general_magana_validation.passed_validation()
     return is_approved
 
-def run_rule_one(filename):
-    rules_magana_validation = MaganamedValidation(filename)
+# Rule 1: SITE and CENTER_NAME must fit according DVM-V7
+def run_rule_one(table):
+    rules_magana_validation = MaganamedValidation(table)
     rules_magana_validation.validate_special_duplication_types(column="participant_identifier")
     rules_magana_validation.validate_site_and_center_name_id(
-        site_column="Site",
+        site_column="SiteCode", # Change to 'Site', depending on the table
         center_name_column="center_name",
         study_id_column="participant_identifier",
     )
+
+# Rule 2: LANGUAGE selection must fit according FILENAME according DVM-V7
+def run_rule_two(table, filename):
+    # Part 1.
+    rules_magana_validation = MaganamedValidation(table)
+    participant_language_result = rules_magana_validation.validate_auxiliar_table(
+        study_id_column="participant_identifier",
+        center_name_column="center_name",
+    )
+    print(participant_language_result) # Use to confirm part 2
+
+    # Part 2.
+    rules_magana_validation.validate_language_selection(table_name=filename)
+    rules_magana_validation.validate_language_selection(table_name=filename)
+
 
 def main():
 
@@ -49,31 +66,29 @@ def main():
     if is_validation_approved:
         print("\n Running Maganamed Validation:")
         run_rule_one(read_kind_participants_df)
-    else:
-        print("FIX general errors before proceeding with validation")
 
-    #  -- Rule 2:
-    # Preprocessing:
-    crsi_df = import_custom_csr_df_with_language_selection()
-    managa_rules_for_crsi_validation = MaganamedValidation(crsi_df)
-    managa_rules_for_crsi_validation.validate_site_and_center_name_id(
-        site_column="Site",
-        center_name_column = "center_name",
-        study_id_column="participant_identifier",
-    )
+    #  -- Rule 2: CSRI Language control
+    # Part 1.
+    auxiliar_csri_df = import_custom_csr_df_with_language_selection()
 
+    # Validation Auxiliar file (optional to run everytime).
+    run_general_validation(auxiliar_csri_df)
+    run_rule_two(auxiliar_csri_df, None)
+
+    # Part 2.
     for csri_table in CSRI_list:
-        read_csri_df = connect_and_fetch_table(csri_table)
-        general_magana_validation = DataValidator(read_csri_df)
-        rules_magana_validation = MaganamedValidation(read_csri_df)
 
         print(f"\n\033[34mTable {csri_table} overview :\033[0m\n")
-        general_magana_validation.check_typos(column="center_name", dictionary=valid_center_names)
-        rules_magana_validation.validate_site_and_center_name_id(
-            site_column = "SiteCode",
-            center_name_column = "center_name",
-            study_id_column="participant_identifier"
-        )
+        read_csri_df = connect_and_fetch_table(csri_table)
+        run_general_validation(read_csri_df)
+
+        # Pre-validation for Rule 2: Table_name and SiteCode
+        if "_" in csri_table:
+            table_abbrev = csri_table.split('_')[1]
+            run_rule_two(read_csri_df, table_abbrev)
+
+        else:
+            print("table_name: ", csri_table)
 
     # # -- EXTRA ACTION: SEARCH
     # input_value = ['ABC', 'CBA']        # TODO: Change these values for real IDs or value to search.
