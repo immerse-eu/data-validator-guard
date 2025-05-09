@@ -67,13 +67,11 @@ def run_rule_two(table, filename):
 
 def main():
 
-
     # # -- Rule 1: Apply validation for 'Kind-of-participant'.
-    # read_kind_participants_df = connect_and_fetch_table("Kind-of-participant")
-    # is_validation_approved = run_general_validation(read_kind_participants_df)
-    # if is_validation_approved:
-    #     print("\n Running Maganamed Validation:")
-    #     run_rule_one(read_kind_participants_df)
+    read_kind_participants_df = connect_and_fetch_table("Kind-of-participant")
+    is_validation_approved = run_general_validation(read_kind_participants_df)
+    if is_validation_approved:
+        run_rule_one(read_kind_participants_df)
 
     # #  -- Rule 2: CSRI Language control
     # Part 1.
@@ -91,7 +89,6 @@ def main():
         if "_" in csri_table:
             table_abbrev = csri_table.split('_')[1]
             run_rule_two(read_csri_df, table_abbrev)
-
         else:
             sample = list(read_csri_df['participant_identifier'])
             control = list(participant_language_result['participant_identifier'])
