@@ -28,9 +28,13 @@ VALID_PARTICIPANTS_TYPE = {
     3: ['Finance ', 'accounting staff'] # Finance / accounting staff
     }
 
-new_keys = list(VALID_SITE_CODES_AND_CENTER_NAMES.values())
-new_values = list(VALID_LANGUAGE_SELECTION.keys())
-VALID_CENTER_AND_LANGUAGE = {k:new_values[i // 2] for i, k in enumerate(new_keys)}
+new_key_center_name = list(VALID_SITE_CODES_AND_CENTER_NAMES.values())
+new_value_language_code = list(VALID_LANGUAGE_SELECTION.keys())
+VALID_CENTER_AND_LANGUAGE = {k:new_value_language_code[i // 2] for i, k in enumerate(new_key_center_name)}
+
+new_key_center_code = list(VALID_SITE_CODES_AND_CENTER_NAMES.keys())
+new_value_language_abbrev = list(VALID_LANGUAGE_SELECTION.values())
+VALID_CENTER_AND_ACRONYM = {k:new_value_language_abbrev[i // 2] for i, k in enumerate(new_key_center_code)}
 
 output_csv_path = "validation_issues.csv"
 
@@ -139,24 +143,22 @@ class MaganamedValidation:
             self.magana_issues.append(filter_issues)
 
 
-    def validate_language_selection(self, table_name):
-        # self.magana_df[study_id_column] = self.magana_df[study_id_column].str.strip()
-        # self.magana_df[center_name_column] = self.magana_df[center_name_column].str.strip().str.capitalize()
-        #
-        # # Validation 1. filename & center_name
-        # self.magana_df['result_filename_and_center_name'] = self.magana_df.apply(
-        #     lambda row: 'OK' if VALID_CENTER_AND_LANGUAGE.get(row[center_name_column]) == row[
-        #         'PARTICIPANT_02'] else 'language-mismatch', axis=1)
-
+    def validate_language_selection(self, table_name, site_column):
         # Validation 2: Table_name and SiteCode
-        if table_name in VALID_LANGUAGE_SELECTION.values():
-            print(f"Coincidences in {table_name} are valid.")
+        self.magana_df['language_validation_result'] = self.magana_df.apply(
+            lambda row: 'OK' if VALID_CENTER_AND_ACRONYM.get(
+                row[site_column]) == table_name else 'language-mismatch', axis=1)
+
+        # Filtering
+        filter_participant_language_val = self.magana_df[[site_column, 'language_validation_result']]
+        filter_issues = self.magana_df[filter_participant_language_val['language_validation_result'] != 'OK']
+
+        if filter_issues.empty:
+            print(f"\n ✔ | Language validation from '{table_name}', successfully passed")
+            return filter_participant_language_val
         else:
-            print(f"Coincidences in {table_name} are not valid.")
-
-
-
-
+            print(f"\n❌ | Issues found in '{self}' :\n'{filter_issues}")
+            self.magana_issues.append(filter_issues)
 
 
 
