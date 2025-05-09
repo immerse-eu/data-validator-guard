@@ -160,6 +160,18 @@ class MaganamedValidation:
             print(f"\n❌ | Issues found in '{self}' :\n'{filter_issues}")
             self.magana_issues.append(filter_issues)
 
+    def validate_completion_questionaries(self):
+        column_questionaries = [column for column in self.magana_df.columns if column.startswith('CSRI')]
+        print("Number of questionaries (columns):", len(column_questionaries))
+
+        self.magana_df['count_responses'] = self.magana_df[column_questionaries].apply(
+            lambda row: row.astype(str).apply(lambda x: x.strip().lower() not in ['', 'nan']).sum(), axis=1
+        )
+
+        filter_by_80_percent = self.magana_df[self.magana_df['count_responses'] >= 80]
+
+        print("count_responses:\n", self.magana_df[['participant_identifier', 'visit_name','count_responses']])
+        print("filter_by_80_percent:", len(filter_by_80_percent))
 
 
     def passed_validation(self):
