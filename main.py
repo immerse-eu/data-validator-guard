@@ -76,7 +76,6 @@ def run_rule_four(table, table_name):
     rules_magana_validation = MaganamedValidation(table)
     rules_magana_validation.verify_primary_diagnosis(table_name)
 
-
 def main():
 
     # -- Rule 1: Apply validation for 'Kind-of-participant'.
@@ -101,6 +100,7 @@ def main():
         if "_" in csri_table:
             table_abbrev = csri_table.split('_')[1]
             run_rule_two(read_csri_df, table_abbrev)
+            run_rule_three(read_csri_df)
         else:
             sample = list(read_csri_df['participant_identifier'])
             control = list(participant_language_result['participant_identifier'])
