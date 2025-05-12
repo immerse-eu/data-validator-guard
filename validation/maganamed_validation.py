@@ -1,7 +1,8 @@
+import os
+
 import pandas as pd
 import yaml
-
-from validation.general_validation import DataValidator
+from config.config_loader import load_config_file
 
 VALID_SITE_CODES_AND_CENTER_NAMES = {
     1: 'Lothian',   # L0
@@ -36,7 +37,8 @@ new_key_center_code = list(VALID_SITE_CODES_AND_CENTER_NAMES.keys())
 new_value_language_abbrev = list(VALID_LANGUAGE_SELECTION.values())
 VALID_CENTER_AND_ACRONYM = {k:new_value_language_abbrev[i // 2] for i, k in enumerate(new_key_center_code)}
 
-output_csv_path = "validation_issues.csv"
+output_excel_path = load_config_file('reports', 'issues')
+output_csv_path = "validation_issues.csv" #TODO: homologate to common "issues" folder.
 
 def import_custom_csr_df_with_language_selection():
 
@@ -160,19 +162,31 @@ class MaganamedValidation:
             print(f"\n❌ | Issues found in '{self}' :\n'{filter_issues}")
             self.magana_issues.append(filter_issues)
 
-    def validate_completion_questionaries(self):
+    def export_table(self, df_to_export, table_name):
+        excel_filename = f'{table_name}_issues_.xlsx'
+        filepath = os.path.join(output_excel_path, excel_filename)
+        df_to_export.to_excel(filepath, index=False)
+        print(f"\n Successfully '{excel_filename}' exported.")
+
+    def validate_completion_questionaries(self, table_name):
         column_questionaries = [column for column in self.magana_df.columns if column.startswith('CSRI')]
-        print("Number of questionaries (columns):", len(column_questionaries))
+
+        def is_valid_response(x):
+            return not (pd.isna(x) or str(x).strip()  == '')
 
         self.magana_df['count_responses'] = self.magana_df[column_questionaries].apply(
-            lambda row: row.astype(str).apply(lambda x: x.strip().lower() not in ['', 'nan']).sum(), axis=1
-        )
+            lambda row: row.apply(is_valid_response).sum(), axis=1)
 
-        filter_by_80_percent = self.magana_df[self.magana_df['count_responses'] >= 80]
+        self.magana_df['percentage_completed'] = (
+                self.magana_df['count_responses'] / len(column_questionaries) * 100).round(1).astype(int)
 
-        print("count_responses:\n", self.magana_df[['participant_identifier', 'visit_name','count_responses']])
-        print("filter_by_80_percent:", len(filter_by_80_percent))
+        filter_by_80_percent = self.magana_df[self.magana_df['percentage_completed'] >= 80]
 
+        print(f" Number of question columns: {len(column_questionaries)}")
+        print(f" Responses with ≥80% completion: {len(filter_by_80_percent)}")
+        print(self.magana_df[['participant_identifier', 'visit_name','count_responses', 'percentage_completed']])
+
+        self.export_table(self.magana_df, table_name)
 
     def passed_validation(self):
         return len(self.magana_issues) == 0
