@@ -65,10 +65,10 @@ def run_rule_two(table, filename):
     )
 
 # Rule 3. Completion questionaries
-def run_rule_three(table):
-    print(f"\n\033[95m Validating questionary completion:\033[0m\n")
+def run_rule_three(table, table_name):
+    print(f"\n\033[95m Validating {table_name} completion:\033[0m\n")
     rules_magana_validation = MaganamedValidation(table)
-    rules_magana_validation.validate_completion_questionaries()
+    rules_magana_validation.validate_completion_questionaries(table_name)
 
 def main():
 
@@ -94,7 +94,6 @@ def main():
         if "_" in csri_table:
             table_abbrev = csri_table.split('_')[1]
             run_rule_two(read_csri_df, table_abbrev)
-            run_rule_three(read_csri_df)
         else:
             sample = list(read_csri_df['participant_identifier'])
             control = list(participant_language_result['participant_identifier'])
@@ -102,6 +101,11 @@ def main():
                 print(f"\n ✔ | Language validation from '{csri_table}', successfully passed")
             else:
                 print(f"Participant from {csri_table} has no invalid language")
+
+    # -- Run Rule 3: Questionaries completion
+    table_name = 'Service-Attachement-Questionnaire-(SAQ)'
+    read_saq_df = connect_and_fetch_table(table_name)
+    run_rule_three(read_saq_df, table_name)
 
 
     # # -- EXTRA ACTION: SEARCH

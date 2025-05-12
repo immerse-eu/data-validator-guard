@@ -169,7 +169,7 @@ class MaganamedValidation:
         print(f"\n Successfully '{excel_filename}' exported.")
 
     def validate_completion_questionaries(self, table_name):
-        column_questionaries = [column for column in self.magana_df.columns if column.startswith('CSRI')]
+        column_questionaries = [column for column in self.magana_df.columns if column.startswith('SAQ')]
 
         def is_valid_response(x):
             return not (pd.isna(x) or str(x).strip()  == '')
