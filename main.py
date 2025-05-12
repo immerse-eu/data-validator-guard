@@ -5,7 +5,7 @@ from validation.general_validation import DataValidator
 from validation.maganamed_validation import (
     VALID_SITE_CODES_AND_CENTER_NAMES, MaganamedValidation, import_custom_csr_df_with_language_selection)
 from cleaning import cleaning_df
-
+from validation.seach_values import execute_search
 
 CSRI_list = ["CSRI", "CSRI_GE", "CSRI_BE", "CSRI_SK"]
 valid_center_names = VALID_SITE_CODES_AND_CENTER_NAMES.values()
@@ -65,10 +65,17 @@ def run_rule_two(table, filename):
     )
 
 # Rule 3. Completion questionaries
-def run_rule_three(table):
-    print(f"\n\033[95m Validating questionary completion:\033[0m\n")
+def run_rule_three(table, table_name):
+    print(f"\n\033[95m Validating {table_name} completion:\033[0m\n")
     rules_magana_validation = MaganamedValidation(table)
-    rules_magana_validation.validate_completion_questionaries()
+    rules_magana_validation.validate_completion_questionaries(table_name)
+
+# Rule 4. Correct diagnosis selection
+def run_rule_four(table, table_name):
+    print(f"\n\033[95m Validating from '{table_name}' correct diagnosis selection:\033[0m\n")
+    rules_magana_validation = MaganamedValidation(table)
+    rules_magana_validation.verify_primary_diagnosis(table_name)
+
 
 def main():
 
@@ -94,7 +101,6 @@ def main():
         if "_" in csri_table:
             table_abbrev = csri_table.split('_')[1]
             run_rule_two(read_csri_df, table_abbrev)
-            run_rule_three(read_csri_df)
         else:
             sample = list(read_csri_df['participant_identifier'])
             control = list(participant_language_result['participant_identifier'])
@@ -103,9 +109,18 @@ def main():
             else:
                 print(f"Participant from {csri_table} has no invalid language")
 
+    # -- Run Rule 3: Questionaries completion
+    table_name = 'Service-Attachement-Questionnaire-(SAQ)'
+    read_saq_df = connect_and_fetch_table(table_name)
+    run_rule_three(read_saq_df, table_name)
 
-    # # -- EXTRA ACTION: SEARCH
-    # input_value = ['ABC', 'CBA']        # TODO: Change these values for real IDs or value to search.
+    # -- Run Rule 4: Correct diagnosis selection
+    table_name = 'Diagnosis'
+    read_diagnosis_df = connect_and_fetch_table(table_name)
+    run_rule_four(read_diagnosis_df, table_name)
+
+    # -- EXTRA ACTION: SEARCH
+    # input_value = ['Screening']        # TODO: Change these values for real IDs or value to search.
     # execute_search(input_value)
 
     # # Control fixed, generated file from Rule 1.

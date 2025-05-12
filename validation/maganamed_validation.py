@@ -169,7 +169,7 @@ class MaganamedValidation:
         print(f"\n Successfully '{excel_filename}' exported.")
 
     def validate_completion_questionaries(self, table_name):
-        column_questionaries = [column for column in self.magana_df.columns if column.startswith('CSRI')]
+        column_questionaries = [column for column in self.magana_df.columns if column.startswith('SAQ')]
 
         def is_valid_response(x):
             return not (pd.isna(x) or str(x).strip()  == '')
@@ -187,6 +187,14 @@ class MaganamedValidation:
         print(self.magana_df[['participant_identifier', 'visit_name','count_responses', 'percentage_completed']])
 
         self.export_table(self.magana_df, table_name)
+
+    def verify_primary_diagnosis(self, table_name):
+        self.magana_df['diagn_primary'] = self.magana_df['diagn_primary'].str.strip()
+
+        filtering_main_dx = self.magana_df[self.magana_df['diagn_primary'].notna()]
+
+        print(f"\n Filtered by main dx: \n", filtering_main_dx['diagn_primary'])
+        return print(self.magana_df.info())
 
     def passed_validation(self):
         return len(self.magana_issues) == 0
