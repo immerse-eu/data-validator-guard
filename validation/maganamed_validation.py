@@ -53,6 +53,13 @@ def import_custom_csr_df_with_language_selection():
     return new_df
 
 
+def export_table(df_to_export, table_name):
+    excel_filename = f'{table_name}_issues.xlsx'
+    filepath = os.path.join(output_excel_path, excel_filename)
+    df_to_export.to_excel(filepath, index=False)
+    print(f"\n Successfully '{excel_filename}' exported.")
+
+
 class MaganamedValidation:
 
     def __init__(self, df):
@@ -162,12 +169,6 @@ class MaganamedValidation:
             print(f"\n❌ | Issues found in '{self}' :\n'{filter_issues}")
             self.magana_issues.append(filter_issues)
 
-    def export_table(self, df_to_export, table_name):
-        excel_filename = f'{table_name}_issues_.xlsx'
-        filepath = os.path.join(output_excel_path, excel_filename)
-        df_to_export.to_excel(filepath, index=False)
-        print(f"\n Successfully '{excel_filename}' exported.")
-
     def validate_completion_questionaries(self, table_name):
         column_questionaries = [column for column in self.magana_df.columns if column.startswith('SAQ')]
 
@@ -186,15 +187,38 @@ class MaganamedValidation:
         print(f" Responses with ≥80% completion: {len(filter_by_80_percent)}")
         print(self.magana_df[['participant_identifier', 'visit_name','count_responses', 'percentage_completed']])
 
-        self.export_table(self.magana_df, table_name)
+        export_table(self.magana_df, table_name)
 
+#  TODO: Clean and export verified Dx to new_db.
     def verify_primary_diagnosis(self, table_name):
-        self.magana_df['diagn_primary'] = self.magana_df['diagn_primary'].str.strip()
+        self.magana_df['visit_name'] = self.magana_df['visit_name'].str.strip()
 
-        filtering_main_dx = self.magana_df[self.magana_df['diagn_primary'].notna()]
+        filtering_baseline_and_screening = self.magana_df[self.magana_df['visit_name'].isin(['Baseline (clinician)', 'Screening'])]
+        column_loinc_codes = [column for column in self.magana_df if column.startswith('F')]
 
-        print(f"\n Filtered by main dx: \n", filtering_main_dx['diagn_primary'])
-        return print(self.magana_df.info())
+        coincidences = []
+        for index, row in filtering_baseline_and_screening.iterrows():
+
+            coincidence_columns = []
+            for column_code in column_loinc_codes:
+                result_match_validation = f'Validation_match_{column_code}'
+                if result_match_validation not in filtering_baseline_and_screening.columns:
+                    filtering_baseline_and_screening[result_match_validation] = (
+                        filtering_baseline_and_screening.groupby('participant_identifier')[
+                        column_code].transform(lambda x: (x == x.iloc[0]).map({True: 'yes', False: 'no'})))
+                if filtering_baseline_and_screening.loc[index, result_match_validation] == 'yes':
+                    coincidence_columns.append(column_code)
+            if coincidence_columns:
+                coincidences.append(f'coincidences in {", ".join(coincidence_columns)}')
+            else:
+                coincidences.append('no coincidences')
+
+        filtering_baseline_and_screening['coincidences'] = coincidences
+
+        # Issues:
+        filtering_baseline_and_screening_issues = filtering_baseline_and_screening[
+            filtering_baseline_and_screening['coincidences'] == "no coincidences"]
+        export_table(filtering_baseline_and_screening_issues, table_name)
 
     def passed_validation(self):
         return len(self.magana_issues) == 0
