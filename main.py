@@ -84,7 +84,7 @@ def main():
     if is_validation_approved:
         run_rule_one(read_kind_participants_df)
 
-    # #  -- Rule 2 and 3: CSRI Language control and questionaries completion
+    # #  -- Rule 2: CSRI Language control and questionaries completion
     # Part 1.
     auxiliar_csri_df = import_custom_csr_df_with_language_selection()
     run_general_validation(auxiliar_csri_df)
@@ -100,7 +100,6 @@ def main():
         if "_" in csri_table:
             table_abbrev = csri_table.split('_')[1]
             run_rule_two(read_csri_df, table_abbrev)
-            run_rule_three(read_csri_df)
         else:
             sample = list(read_csri_df['participant_identifier'])
             control = list(participant_language_result['participant_identifier'])
