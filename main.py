@@ -74,7 +74,19 @@ def run_rule_three(table, table_name):
 def run_rule_four(table, table_name):
     print(f"\n\033[95m Validating from '{table_name}' correct diagnosis selection:\033[0m\n")
     rules_magana_validation = MaganamedValidation(table)
-    rules_magana_validation.verify_primary_diagnosis(table_name)
+    rules_magana_validation.validate_primary_diagnosis(table_name)
+
+# Rule 5. visit_time
+# TODO: Include visit_time
+
+# Rule 6. End comparison
+def run_rule_six(table, table_name):
+    rules_magana_validation = MaganamedValidation(table)
+    rules_magana_validation.validate_completed_visits(table_name)
+
+def run_auxiliary_rule_six (table):
+    rules_magana_validation = MaganamedValidation(table)
+    rules_magana_validation.retrieve_saq_data()
 
 def main():
 
@@ -84,7 +96,7 @@ def main():
     if is_validation_approved:
         run_rule_one(read_kind_participants_df)
 
-    # #  -- Rule 2: CSRI Language control and questionaries completion
+    #-- Rule 2: CSRI Language control and questionaries completion
     # Part 1.
     auxiliar_csri_df = import_custom_csr_df_with_language_selection()
     run_general_validation(auxiliar_csri_df)
@@ -108,15 +120,24 @@ def main():
             else:
                 print(f"Participant from {csri_table} has no invalid language")
 
-    # -- Run Rule 3: Questionaries completion
+    #-- Run Rule 3: Questionaries completion
     table_name = 'Service-Attachement-Questionnaire-(SAQ)'
     read_saq_df = connect_and_fetch_table(table_name)
     run_rule_three(read_saq_df, table_name)
 
-    # -- Run Rule 4: Correct diagnosis selection
+    #-- Run Rule 4: Correct diagnosis selection
     table_name = 'Diagnosis'
     read_diagnosis_df = connect_and_fetch_table(table_name)
     run_rule_four(read_diagnosis_df, table_name)
+
+    #-- Run Rule 5: "Visit time points"
+    # TODO: pending rule.
+
+    # #-- Run Rule 6: Completed visits
+    read_end_df = connect_and_fetch_table('End')
+    read_saq_df = connect_and_fetch_table('Service-Attachement-Questionnaire-(SAQ)')
+    new_df = run_auxiliary_rule_six(read_saq_df)
+    run_rule_six(read_end_df,new_df )
 
     # -- EXTRA ACTION: SEARCH
     # input_value = ['Screening']        # TODO: Change these values for real IDs or value to search.

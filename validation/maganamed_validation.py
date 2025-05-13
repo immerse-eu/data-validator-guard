@@ -29,6 +29,14 @@ VALID_PARTICIPANTS_TYPE = {
     3: ['Finance ', 'accounting staff'] # Finance / accounting staff
     }
 
+VALID_TYPE_VISIT_ATTENDANCE = {
+    0: 'Enrolment',
+    1: 'Baseline',
+    2: 'T1',
+    3: 'T2',
+    4: 'T3',
+}
+
 new_key_center_name = list(VALID_SITE_CODES_AND_CENTER_NAMES.values())
 new_value_language_code = list(VALID_LANGUAGE_SELECTION.keys())
 VALID_CENTER_AND_LANGUAGE = {k:new_value_language_code[i // 2] for i, k in enumerate(new_key_center_name)}
@@ -190,7 +198,7 @@ class MaganamedValidation:
         export_table(self.magana_df, table_name)
 
 #  TODO: Clean and export verified Dx to new_db.
-    def verify_primary_diagnosis(self, table_name):
+    def validate_primary_diagnosis(self, table_name):
         self.magana_df['visit_name'] = self.magana_df['visit_name'].str.strip()
 
         filtering_baseline_and_screening = self.magana_df[self.magana_df['visit_name'].isin(['Baseline (clinician)', 'Screening'])]
@@ -219,6 +227,21 @@ class MaganamedValidation:
         filtering_baseline_and_screening_issues = filtering_baseline_and_screening[
             filtering_baseline_and_screening['coincidences'] == "no coincidences"]
         export_table(filtering_baseline_and_screening_issues, table_name)
+
+    # TODO: Validate "END.csv"
+
+    def retrieve_saq_data(self):
+        saq_columns = [column for column in self.magana_df if column.startswith('SAQ')]
+        filtered_df =  self.magana_df[['participant_identifier', 'visit_name'] + saq_columns]
+        print("filtered_df", filtered_df)
+        return filtered_df
+
+    def validate_completed_visits(self, auxiliar_df):
+        self.magana_df['end_01'] = self.magana_df['end_01']
+        print("Last visit attendance: ", self.magana_df[['participant_identifier', 'end_01']])
+
+        print("auxiliar_df: \n", auxiliar_df)
+
 
     def passed_validation(self):
         return len(self.magana_issues) == 0
