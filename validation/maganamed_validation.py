@@ -30,11 +30,11 @@ VALID_PARTICIPANTS_TYPE = {
     }
 
 VALID_TYPE_VISIT_ATTENDANCE = {
-    0: 'Enrolment',
-    1: 'Baseline',
-    2: 'T1',
-    3: 'T2',
-    4: 'T3',
+    -1: 'Enrolment',
+    0: 'Baseline',
+    1: 'T1',
+    2: 'T2',
+    3: 'T3',
 }
 
 new_key_center_name = list(VALID_SITE_CODES_AND_CENTER_NAMES.values())
@@ -232,16 +232,29 @@ class MaganamedValidation:
 
     def retrieve_saq_data(self):
         saq_columns = [column for column in self.magana_df if column.startswith('SAQ')]
+        self.magana_df['visit_name'] = self.magana_df['visit_name'].str.strip().str.extract(r'^(\w+)', expand=False)
         filtered_df =  self.magana_df[['participant_identifier', 'visit_name'] + saq_columns]
-        print("filtered_df", filtered_df)
         return filtered_df
 
-    def validate_completed_visits(self, auxiliar_df):
-        self.magana_df['end_01'] = self.magana_df['end_01']
-        print("Last visit attendance: ", self.magana_df[['participant_identifier', 'end_01']])
+    def validate_completed_visits(self, auxiliar_magana_df):
+        # print("auxiliar_df: \n", auxiliar_magana_df)
 
-        print("auxiliar_df: \n", auxiliar_df)
+        # TODO: 1. NORMALIZE column 'end_01' from 'END.csv' using the 'new' coding from 'VALID_TYPE_VISIT_ATTENDANCE'.
+        self.magana_df['end_01'] = self.magana_df['end_01'] - 1
+        # filter_end_01 = self.magana_df[self.magana_df['end_01'] < 0]
+        print(" END.csv :\n ", self.magana_df[['participant_identifier', 'VisitCode', 'end_01']]) # VisitCode is a coincidence instead of using ID
 
+
+        # Comparison "VALID_TYPES_DICT" between two tables
+        filtering_aux_magana_df = auxiliar_magana_df[auxiliar_magana_df['SiteCode'] == 0] #TODO: Fix this filter. clue: this filtered table does not include this column
+        # merged_magana_df = self.magana_df.merge(auxiliar_magana_df[['SiteCode','visit_name']], on='SiteCode', how='left')
+        # print("merged_magana_df", merged_magana_df)
+        # merged_magana_df['is_a_match'] = merged_magana_df.apply(
+        #     lambda row: 'OK' if VALID_TYPE_VISIT_ATTENDANCE.get(row['end_01']) == row['visit_name_y']
+        #     else 'Mismatch', axis=1
+        # )
+
+        # print(merged_magana_df[['participant_identifier', 'end_01', 'visit_name_y', 'is_a_match']].head(10))
 
     def passed_validation(self):
         return len(self.magana_issues) == 0
