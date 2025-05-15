@@ -77,7 +77,19 @@ def run_rule_four(table, table_name):
     rules_magana_validation.validate_primary_diagnosis(table_name)
 
 # Rule 5. visit_time
-# TODO: Include visit_time
+# TODO: Calculate real TIME since user start - finished test. Compare with T1, T2, T3
+''' 
+a) save the date of completion of the SAQ at Baseline (patient) as date of baseline completion. 
+b) calculate the dates for each participant of 2-month, 6-months and 12-months after date of baseline completion
+c) save the date of completion of the SAQ atT1 (2-month) (patient), T2 (6-months) (patient) and T3 (12-months) (patients)
+d) calculate the difference in days between "b" and "c"
+We can then determin whether the difference in "d" is within a specific standard deviation or whether some appointments are too late or too early. 
+
+'''
+def run_rule_five(table, table_name):
+    print(f"\n\033[95m Validating '{table_name}' correct Time selection (T1-T3):\033[0m\n")
+    rules_magana_validation = MaganamedValidation(table)
+    rules_magana_validation.validate_periods()
 
 # Rule 6. End comparison
 def run_rule_six(table, table_name):
@@ -132,8 +144,11 @@ def main():
 
     #-- Run Rule 5: "Visit time points"
     # TODO: pending rule.
+    table_name = 'Service-Attachement-Questionnaire-(SAQ)'
+    read_saq_df = connect_and_fetch_table(table_name)
+    run_rule_five(read_saq_df, table_name)
 
-    # #-- Run Rule 6: Completed visits
+#-- Run Rule 6: Completed visits
     read_end_df = connect_and_fetch_table('End')
     read_saq_df = connect_and_fetch_table('Service-Attachement-Questionnaire-(SAQ)')
     new_saq_df = run_auxiliary_rule_six(read_saq_df)

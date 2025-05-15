@@ -37,6 +37,13 @@ VALID_TYPE_VISIT_ATTENDANCE = {
     3: 'T3',
 }
 
+VALID_STUDY_PERIOD_IN_MONTHS = {
+    'Baseline': 0,
+    'T1': 2,
+    'T2': 6,
+    'T3': 12,
+}
+
 new_key_center_name = list(VALID_SITE_CODES_AND_CENTER_NAMES.values())
 new_value_language_code = list(VALID_LANGUAGE_SELECTION.keys())
 VALID_CENTER_AND_LANGUAGE = {k:new_value_language_code[i // 2] for i, k in enumerate(new_key_center_name)}
@@ -234,6 +241,7 @@ class MaganamedValidation:
         self.magana_df['visit_name'] = self.magana_df['visit_name'].str.strip().str.extract(r'^(\w+)', expand=False)
         return self.magana_df[['participant_identifier', 'visit_name', 'count_responses', 'percentage_qre_completed']]
 
+    # TODO: Enhance outcome: Example,once finding a match compare idf the other periods have empty responses, if not, is an issue.
     def validate_completed_visits(self, auxiliar_magana_df):
         self.magana_df['end_01'] = self.magana_df['end_01'] - 1 # Normalized column with "new" VALID_TYPE_VISIT_ATTENDANCE
 
@@ -241,11 +249,31 @@ class MaganamedValidation:
         merged_magana_df = self.magana_df.merge(auxiliar_magana_df, on='participant_identifier', how='left')
         merged_magana_df['is_a_match'] = merged_magana_df.apply(
             lambda row: 'OK' if VALID_TYPE_VISIT_ATTENDANCE.get(row['end_01']) == row['visit_name_y']
-            else 'Mismatch', axis=1
-        )
+            else 'Mismatch', axis=1)
 
         print(merged_magana_df[['participant_identifier', 'end_01', 'visit_name_y', 'percentage_qre_completed', 'is_a_match']].head(10))
         export_table(merged_magana_df,table_name='END-merged_with-saq_magana_df')
+
+    def validate_periods(self):
+        # print('auxiliar_magana_df', auxiliar_magana_df)
+
+        for column in self.magana_df[['created_at','started_at','finished_at']]:
+            self.magana_df[column] = pd.to_datetime(self.magana_df[column]).dt.date
+
+        baseline_participants = {}
+        for index, row in self.magana_df.iterrows():
+            if 'Baseline' in row['visit_name']:
+                baseline_participants[row['participant_identifier']] = row['started_at']
+
+        def calculate_delta_time(row):
+            baseline = baseline_participants.get(row['participant_identifier'])
+            if pd.isna(baseline) or pd.isna(row['finished_at']):
+                return pd.NaT
+            return row['finished_at'] - baseline
+
+        self.magana_df['delta_time'] = self.magana_df.apply(calculate_delta_time, axis=1)
+        print(self.magana_df[['participant_identifier', 'visit_name', 'started_at', 'delta_time']].head(10))
+        # self.magana_df['is_a_valid_period'] # TODO: Assess if its a valid period
 
     def passed_validation(self):
         return len(self.magana_issues) == 0
