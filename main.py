@@ -86,7 +86,7 @@ def run_rule_six(table, table_name):
 
 def run_auxiliary_rule_six (table):
     rules_magana_validation = MaganamedValidation(table)
-    rules_magana_validation.retrieve_saq_data()
+    return rules_magana_validation.retrieve_saq_data()
 
 def main():
 
@@ -136,8 +136,8 @@ def main():
     # #-- Run Rule 6: Completed visits
     read_end_df = connect_and_fetch_table('End')
     read_saq_df = connect_and_fetch_table('Service-Attachement-Questionnaire-(SAQ)')
-    new_df = run_auxiliary_rule_six(read_saq_df)
-    run_rule_six(read_end_df,new_df )
+    new_saq_df = run_auxiliary_rule_six(read_saq_df)
+    run_rule_six(read_end_df,new_saq_df)
 
     # -- EXTRA ACTION: SEARCH
     # input_value = ['Screening']        # TODO: Change these values for real IDs or value to search.
