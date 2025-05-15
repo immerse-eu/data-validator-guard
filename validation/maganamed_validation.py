@@ -186,16 +186,17 @@ class MaganamedValidation:
         self.magana_df['count_responses'] = self.magana_df[column_questionaries].apply(
             lambda row: row.apply(is_valid_response).sum(), axis=1)
 
-        self.magana_df['percentage_completed'] = (
+        self.magana_df['percentage_qre_completed'] = (
                 self.magana_df['count_responses'] / len(column_questionaries) * 100).round(1).astype(int)
 
-        filter_by_80_percent = self.magana_df[self.magana_df['percentage_completed'] >= 80]
+        filter_by_80_percent = self.magana_df[self.magana_df['percentage_qre_completed'] >= 80]
 
         print(f" Number of question columns: {len(column_questionaries)}")
         print(f" Responses with ≥80% completion: {len(filter_by_80_percent)}")
-        print(self.magana_df[['participant_identifier', 'visit_name','count_responses', 'percentage_completed']])
+        print(self.magana_df[['participant_identifier', 'visit_name','count_responses', 'percentage_qre_completed']])
 
-        export_table(self.magana_df, table_name)
+        # export_table(self.magana_df, table_name)
+        return self.magana_df
 
 #  TODO: Clean and export verified Dx to new_db.
     def validate_primary_diagnosis(self, table_name):
@@ -228,33 +229,23 @@ class MaganamedValidation:
             filtering_baseline_and_screening['coincidences'] == "no coincidences"]
         export_table(filtering_baseline_and_screening_issues, table_name)
 
-    # TODO: Validate "END.csv"
-
     def retrieve_saq_data(self):
-        saq_columns = [column for column in self.magana_df if column.startswith('SAQ')]
+        self.validate_completion_questionaries('Service-Attachement-Questionnaire-(SAQ)')
         self.magana_df['visit_name'] = self.magana_df['visit_name'].str.strip().str.extract(r'^(\w+)', expand=False)
-        filtered_df =  self.magana_df[['participant_identifier', 'visit_name'] + saq_columns]
-        return filtered_df
+        return self.magana_df[['participant_identifier', 'visit_name', 'count_responses', 'percentage_qre_completed']]
 
     def validate_completed_visits(self, auxiliar_magana_df):
-        # print("auxiliar_df: \n", auxiliar_magana_df)
+        self.magana_df['end_01'] = self.magana_df['end_01'] - 1 # Normalized column with "new" VALID_TYPE_VISIT_ATTENDANCE
 
-        # TODO: 1. NORMALIZE column 'end_01' from 'END.csv' using the 'new' coding from 'VALID_TYPE_VISIT_ATTENDANCE'.
-        self.magana_df['end_01'] = self.magana_df['end_01'] - 1
-        # filter_end_01 = self.magana_df[self.magana_df['end_01'] < 0]
-        print(" END.csv :\n ", self.magana_df[['participant_identifier', 'VisitCode', 'end_01']]) # VisitCode is a coincidence instead of using ID
+        # Comparison "VALID_TYPES_DICT" between SAQ and END tables, "visit_name" & "end_01" columns.
+        merged_magana_df = self.magana_df.merge(auxiliar_magana_df, on='participant_identifier', how='left')
+        merged_magana_df['is_a_match'] = merged_magana_df.apply(
+            lambda row: 'OK' if VALID_TYPE_VISIT_ATTENDANCE.get(row['end_01']) == row['visit_name_y']
+            else 'Mismatch', axis=1
+        )
 
-
-        # Comparison "VALID_TYPES_DICT" between two tables
-        filtering_aux_magana_df = auxiliar_magana_df[auxiliar_magana_df['SiteCode'] == 0] #TODO: Fix this filter. clue: this filtered table does not include this column
-        # merged_magana_df = self.magana_df.merge(auxiliar_magana_df[['SiteCode','visit_name']], on='SiteCode', how='left')
-        # print("merged_magana_df", merged_magana_df)
-        # merged_magana_df['is_a_match'] = merged_magana_df.apply(
-        #     lambda row: 'OK' if VALID_TYPE_VISIT_ATTENDANCE.get(row['end_01']) == row['visit_name_y']
-        #     else 'Mismatch', axis=1
-        # )
-
-        # print(merged_magana_df[['participant_identifier', 'end_01', 'visit_name_y', 'is_a_match']].head(10))
+        print(merged_magana_df[['participant_identifier', 'end_01', 'visit_name_y', 'percentage_qre_completed', 'is_a_match']].head(10))
+        export_table(merged_magana_df,table_name='END-merged_with-saq_magana_df')
 
     def passed_validation(self):
         return len(self.magana_issues) == 0
