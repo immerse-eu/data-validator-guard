@@ -254,8 +254,8 @@ class MaganamedValidation:
         print(merged_magana_df[['participant_identifier', 'end_01', 'visit_name_y', 'percentage_qre_completed', 'is_a_match']].head(10))
         export_table(merged_magana_df,table_name='END-merged_with-saq_magana_df')
 
-    def validate_periods(self):
-        # print('auxiliar_magana_df', auxiliar_magana_df)
+    def validate_periods(self, table_name):
+        self.magana_df['clean_visit_name'] = self.magana_df['visit_name'].str.strip().str.extract(r'^(\w+)', expand=False)
 
         for column in self.magana_df[['created_at','started_at','finished_at']]:
             self.magana_df[column] = pd.to_datetime(self.magana_df[column]).dt.date
@@ -271,9 +271,14 @@ class MaganamedValidation:
                 return pd.NaT
             return row['finished_at'] - baseline
 
-        self.magana_df['delta_time'] = self.magana_df.apply(calculate_delta_time, axis=1)
-        print(self.magana_df[['participant_identifier', 'visit_name', 'started_at', 'delta_time']].head(10))
-        # self.magana_df['is_a_valid_period'] # TODO: Assess if its a valid period
+        self.magana_df['duration_study_in_days'] = self.magana_df.apply(calculate_delta_time, axis=1).astype(str).str.extract(r'(\d+)').astype(float)
+
+        self.magana_df['estimated_days'] = self.magana_df['clean_visit_name'].map(
+            lambda x: VALID_STUDY_PERIOD_IN_MONTHS.get(x, 0) * 30)
+        self.magana_df['is_a_valid_period'] = abs(self.magana_df['estimated_days'] - self.magana_df['duration_study_in_days']) <= 10
+
+        print(self.magana_df[['duration_study_in_days', 'estimated_days', 'is_a_valid_period']].head(10))
+        export_table(self.magana_df, f'{table_name}_period')
 
     def passed_validation(self):
         return len(self.magana_issues) == 0
