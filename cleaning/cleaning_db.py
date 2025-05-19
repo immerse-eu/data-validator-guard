@@ -11,10 +11,12 @@ NEW_DB_PATH = load_config_file('researchDB','cleaned_db')
 
 def clone_database(original_path, new_path):
     if os.path.exists(new_path):
+        print("Database path  exists")
 
         with sqlite3.connect(original_path) as source_conn:
             with sqlite3.connect(new_path) as dest_conn:
                 source_conn.backup(dest_conn)
+                print("Database cloned")
 
 def get_all_tables(path_db):
     conn = sqlite3.connect(path_db)
@@ -53,13 +55,17 @@ def apply_changes(conn, table, change_type, row):
                            (new_value, participant_identifier))
 
     elif change_type == 'changes_df_by_site':
-        updated = False
+        updated_columns = []
         for column in ['Site', 'SiteCode']:
             if has_column(conn, table, column) and has_column(conn, table, 'participant_identifier'):
-                cursor.execute(f'UPDATE "{table}" SET {column} = ? WHERE participant_identifier = ?',
-                               (new_value, participant_identifier))
-                updated = True
-        if not updated:
+                cursor.execute(
+                    f'UPDATE "{table}" SET {column} = ? WHERE participant_identifier = ?',
+                    (new_value, participant_identifier)
+                )
+                updated_columns.append(column)
+        if updated_columns:
+            print(f"Updated {table}: columns {', '.join(updated_columns)}.")
+        else:
             print(f"Skipping {table}: Neither 'Site' nor 'SiteCode' found.")
 
 def cleaning_db(path_db):
