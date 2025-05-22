@@ -44,15 +44,27 @@ def apply_changes(conn, table, change_type, row):
 
     if change_type == 'changes_df_by_id':
         column = 'participant_identifier'
+        updated_columns = []
+
         if has_column(conn, table, column) and has_column(conn, table, 'participant_identifier'):
             cursor.execute(f'UPDATE "{table}" SET {column} = ? WHERE participant_identifier = ?',
                            (new_value, participant_identifier))
+            updated_columns.append(column)
+
+        if updated_columns:
+            print(f"Updated {table}: columns by changes_df_by_id {', '.join(updated_columns)}.")
 
     elif change_type == 'changes_df_by_center_name':
         column = 'center_name'
+        updated_columns = []
+
         if has_column(conn, table, column) and has_column(conn, table, 'participant_identifier'):
             cursor.execute(f'UPDATE "{table}" SET {column} = ? WHERE participant_identifier = ?',
                            (new_value, participant_identifier))
+            updated_columns.append(column)
+
+        if updated_columns:
+            print(f"Updated {table}: columns by changes_df_by_center_name {', '.join(updated_columns)}.")
 
     elif change_type == 'changes_df_by_site':
         updated_columns = []
