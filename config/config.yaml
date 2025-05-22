@@ -1,0 +1,13 @@
+
+researchDB:
+  db_path:
+  cleaned_db:
+
+auxiliarFiles:
+  csri:
+  redcap_preprocesed_path: # change name
+
+reports:
+  issues:
+  changes:
+  fixes:
