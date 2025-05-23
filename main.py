@@ -103,7 +103,6 @@ def general_validation_ids(df_control, df_to_validate):
     # rules_magana_validation = MaganamedValidation(df_to_validate)
     # rules_magana_validation.validate_special_duplication_types(column="study_id_pat")
 
-
 def run_rules_from_df(control_dir):
     df_control = None
 
