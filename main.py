@@ -14,8 +14,8 @@ valid_center_names = VALID_SITE_CODES_AND_CENTER_NAMES.values()
 DB_PATH = load_config_file('researchDB','db_path')
 FIXES_PATH = load_config_file('reports','fixes')
 NEW_DB_PATH = load_config_file('researchDB','cleaned_db')
-ID_CONTROL_PATH = load_config_file('auxiliarFiles','ids_anita_control')
-ID_SAMPLE_PATH = load_config_file('auxiliarFiles','ids_anita_sample')
+ID_CONTROL_PATH = load_config_file('auxiliarFiles','ids_master_reference')
+ID_SAMPLE_PATH = load_config_file('auxiliarFiles','ids_master_test')
 
 def connect_and_fetch_table(table_name):
     sql_connection = sqlite3.connect(NEW_DB_PATH)
