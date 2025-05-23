@@ -29,6 +29,26 @@ class DataValidator:
             print(f"\n❌ | {len(typos)} Typos have been found in column '{column}':\n{typos}")
             self.issues.append(typos)
 
+    def check_correct_ids(self, df_control, id_column):
+        self.df[id_column] = self.df[id_column].str.strip()
+        comparison_ids = set(self.df[id_column].dropna())
+        control_ids = set(df_control[id_column].dropna())
+
+        print(f" Control file length: {len(control_ids)}")
+        print(f" Test file length: {len(comparison_ids)}")
+
+        missing_ids = control_ids - comparison_ids
+        extra_ids = comparison_ids - control_ids
+
+        print(" Missing IDs in test file: ", list(missing_ids))
+        print(" Extra IDs in test file: ",   list(extra_ids))
+
+        len_discrepancies = self.df[
+            self.df[id_column].apply(lambda x: not isinstance(x, str) or len(x) != 10 if pd.notnull(x) else False)]
+
+        print(f"\nNumber of IDs discrepancies: {len(len_discrepancies[id_column])} ")
+        print(len_discrepancies[[id_column, 'site']])
+
 
     def report(self):
         if self.issues:

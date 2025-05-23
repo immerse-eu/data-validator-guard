@@ -1,3 +1,4 @@
+import os
 import sqlite3
 import pandas as pd
 from config.config_loader import load_config_file
@@ -13,6 +14,8 @@ valid_center_names = VALID_SITE_CODES_AND_CENTER_NAMES.values()
 DB_PATH = load_config_file('researchDB','db_path')
 FIXES_PATH = load_config_file('reports','fixes')
 NEW_DB_PATH = load_config_file('researchDB','cleaned_db')
+ID_CONTROL_PATH = load_config_file('auxiliarFiles','ids_anita_control')
+ID_SAMPLE_PATH = load_config_file('auxiliarFiles','ids_anita_sample')
 
 def connect_and_fetch_table(table_name):
     sql_connection = sqlite3.connect(NEW_DB_PATH)
@@ -90,6 +93,38 @@ def run_rule_six(table, table_name):
 def run_auxiliary_rule_six (table):
     rules_magana_validation = MaganamedValidation(table)
     return rules_magana_validation.retrieve_saq_data()
+
+def general_validation_ids(df_control, df_to_validate):
+    print(f"\n\033[95m Validating IDS :\033[0m\n")
+    general_validation = DataValidator(df_to_validate)
+    general_validation.check_duplicates(df_to_validate)
+    general_validation.check_correct_ids(df_control, id_column='study_id_pat')
+    # general_validation.check_typos(column="participant_identifier", dictionary=valid_center_names)
+    # rules_magana_validation = MaganamedValidation(df_to_validate)
+    # rules_magana_validation.validate_special_duplication_types(column="study_id_pat")
+
+
+def run_rules_from_df(control_dir):
+    df_control = None
+
+    for filename in os.listdir(control_dir):
+        if filename.endswith(".csv"):
+            if filename.startswith("I_all_TD_UK_120325"): # Control FILE
+                df_control = pd.read_csv(os.path.join(control_dir, filename))
+                print(f"\n\033[34mControl file: '{filename}' \033[0m\n")
+                print(df_control.info())
+            else:
+                csv_df = pd.read_csv(os.path.join(control_dir, filename))  # File(s) to validate
+                print(f"\n\033[34mFile to validate: '{filename}' \033[0m\n")
+                print(csv_df.info())
+                general_validation_ids(df_control, csv_df)
+
+        elif filename.endswith(".xlsx"):
+            excel_df = pd.read_excel(os.path.join(control_dir, filename)) # File(s) to validate
+            print(f"\n\033[34mFile to validate:'{filename}' \033[0m\n")
+            print(excel_df.head(3))
+            general_validation_ids(df_control, excel_df)
+
 
 def main():
 

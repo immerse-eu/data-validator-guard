@@ -5,7 +5,9 @@ researchDB:
 
 auxiliarFiles:
   csri:
-  redcap_preprocesed_path: # change name
+  ids_redcap_test:
+  ids_master_test:
+  ids_master_reference:
 
 reports:
   issues:
