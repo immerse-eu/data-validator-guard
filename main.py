@@ -1,6 +1,8 @@
 import os
 import sqlite3
 import pandas as pd
+
+from cleaning.general_id_cleaning import DataCleaning
 from config.config_loader import load_config_file
 from validation.general_validation import DataValidator
 from validation.maganamed_validation import (
@@ -106,15 +108,18 @@ def run_auxiliary_rule_six(table):
 
 
 # General initial rule: ID validation
-def general_validation_ids(df_control, df_to_validate):
+def general_validation_ids(df_control, df_to_validate, file):
     print(f"\n\033[95m Validating IDS :\033[0m\n")
     general_validation = DataValidator(df_to_validate)
     general_validation.check_general_duplications(df_to_validate)
     general_validation.check_duplications_applying_normalisation('participant_identifier')
     general_validation.check_correct_ids(df_control, id_column=0)
+    # Cleaning process
+    general_cleaning = DataCleaning(df_to_validate)
+    general_cleaning.ids_structure_correction(id_column='participant_identifier', filename=file)
 
 
-# Alternative function to run ID validation from CSV files instead of SQL tables
+# Alternative function to run ID validation from CSV/EXCEL files instead of SQL tables
 def run_id_validation_from_df(reference_directory, test_directory, filename):
     if os.path.exists(reference_directory):
         df_control = pd.read_excel(reference_directory)
@@ -126,12 +131,12 @@ def run_id_validation_from_df(reference_directory, test_directory, filename):
                 if file.endswith(".csv"):
                     csv_df = pd.read_csv(os.path.join(test_directory, file))  # File(s) to validate
                     print(f"\n\033[34mFile to validate: '{file}' \033[0m\n")
-                    general_validation_ids(df_control, csv_df)
+                    general_validation_ids(df_control, csv_df, file)
 
                 elif file.endswith(".xlsx"):
                     excel_df = pd.read_excel(os.path.join(test_directory, file))  # File(s) to validate
                     print(f"\n\033[34mFile to validate:'{file}' \033[0m\n")
-                    general_validation_ids(df_control, excel_df)
+                    general_validation_ids(df_control, excel_df, file)
     else:
         print(f"\n\033[34mFilepath not found!\033[0m\n")
 
