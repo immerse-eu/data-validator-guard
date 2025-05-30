@@ -1,4 +1,15 @@
+import os
+import re
+
 import pandas as pd
+
+VALID_CENTER_ACRONYMS = ["BI", "LE", "MA", "WI", "BR", "KO", "CA", "LO"]
+VALID_PARTICIPANT_TYPES = ["P", "C", "A"]
+
+VALID_PATTERN_USING_MINUS = re.compile(
+    r"^I-(" + "|".join(VALID_CENTER_ACRONYMS) + r")-(" + "|".join(VALID_PARTICIPANT_TYPES) + r")-\d{3}$")
+VALID_PATTERN_USING_UNDERSCORE = re.compile(
+    r"^I_(" + "|".join(["WI", "MA"]) + r")_(" + "|".join(VALID_PARTICIPANT_TYPES) + r")_\d{3}$")
 
 
 class DataValidator:
@@ -15,7 +26,7 @@ class DataValidator:
             print(f"\n ✔ | Validation of duplications passed: No duplicated rows were found in current table.")
         else:
             print(f"\n❌ | {len(duplicates)} Duplicated values have been found in table:\n '{duplicates}'")
-            self.issues.append(duplicates)
+            self.issues.append(duplicates[["participant_identifier", "issue_type"]])
 
     def check_duplications_applying_normalisation(self, column: str = None):
         self.df = self.df.copy()
@@ -37,28 +48,52 @@ class DataValidator:
         self.df["issue_type"] = "duplication"
 
         filter_duplicates = self.df[self.df['is_duplicate'] == True]
-        # print(self.df[['participant_identifier', 'participant_identifier_normalized', 'is_duplicate']].head(3))
 
         if filter_duplicates.empty:
             print(f"\n ✔ | Validation of special duplications passed: No duplicated rows were found in current table.")
         else:
-            print(f"\n❌ | {len(filter_duplicates)} Duplicated values have been found in current table.")
-            self.issues.append(filter_duplicates)
+            print(
+                f"\n❌ | {len(filter_duplicates)} Duplicated values using normalization have been found in current table.")
+            self.issues.append(filter_duplicates[['participant_identifier', 'issue_type']])
 
     def check_typos(self, column, dictionary):
         self.df[column] = self.df[column].str.strip().str.lower()
         clean_dictionary = [item.strip().lower() for item in dictionary]
 
         typos = self.df.loc[~self.df[column].isin(clean_dictionary)].copy()
-        typos["issue_type"] = "typo-issue"
+        typos["issue_type"] = "typo"
 
         if typos.empty:
             print(f"\n ✔ | Validation of typos passed: No typos were found in column '{column}'.")
         else:
             print(f"\n❌ | {len(typos)} Typos have been found in column '{column}':\n{typos}")
-            self.issues.append(typos)
+            self.issues.append(typos[['participant_identifier', 'issue_type']])
 
-    def check_correct_ids(self, df_control, id_column):
+    def check_typos_in_ids(self, id_column):
+        id_validation = self.df.copy()
+
+        def validate_id(idx):
+            if isinstance(idx, str):
+                if VALID_PATTERN_USING_MINUS.match(idx) or VALID_PATTERN_USING_UNDERSCORE.match(idx):
+                    return 'valid_id'
+                else:
+                    return 'invalid_id'
+
+        for idx in id_validation:
+            if isinstance(idx, str):
+                validate_id(idx)
+
+        id_validation['issue_type'] = id_validation.iloc[:, id_column].apply(validate_id)
+        filter_issues = id_validation[id_validation['issue_type'] == 'invalid_id']
+
+        if filter_issues.empty:
+            print(f"\n ✔ | Validation of typos passed: No typos were found in column '{id_column}'.")
+        else:
+            print(f"\n❌ | {len(filter_issues['issue_type'])} Typos have been found in IDs")
+            self.issues.append(filter_issues[['participant_identifier', 'issue_type']])
+            # print(self.issues)
+
+    def compare_ids_with_redcap_ids(self, df_control, id_column):
         # self.df[id_column] = self.df[id_column].str.strip()
         # comparison_ids = set(self.df[id_column].dropna())
         # control_ids = set(df_control[id_column].dropna())
@@ -81,10 +116,11 @@ class DataValidator:
         # print(f"\nNumber of IDs discrepancies: {len(len_discrepancies[id_column])} ")
         # print(len_discrepancies[[id_column, 'site']])
 
-    def report(self):
+    def report(self, export_path, filename):
         if self.issues:
             all_issues_df = pd.concat(self.issues, ignore_index=True)
-            print("\n All general issues:", all_issues_df)
+            all_issues_df.to_csv(os.path.join(export_path, f'issues_{filename}.csv'), index=False)
+            print(f"\n All general issues exported as: {f'issues_{filename}.csv'}")
         else:
             print("\n Report from general validation process: All validations were successfully passed ✔ !!")
 

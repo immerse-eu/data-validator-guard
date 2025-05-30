@@ -14,6 +14,7 @@ CSRI_list = ["CSRI", "CSRI_GE", "CSRI_BE", "CSRI_SK"]
 valid_center_names = VALID_SITE_CODES_AND_CENTER_NAMES.values()
 
 DB_PATH = load_config_file('researchDB', 'db_path')
+ISSUES_PATH = load_config_file('reports', 'issues')
 FIXES_PATH = load_config_file('reports', 'fixes')
 NEW_DB_PATH = load_config_file('researchDB', 'cleaned_db')
 ID_CONTROL_PATH = load_config_file('auxiliarFiles', 'ids_reference')
@@ -35,7 +36,7 @@ def run_general_validation(table):
     general_magana_validation = DataValidator(table)
     general_magana_validation.check_typos(column="center_name", dictionary=valid_center_names)
     general_magana_validation.check_general_duplications(table)
-    general_magana_validation.report()
+    # general_magana_validation.report()
     is_approved = general_magana_validation.passed_validation()
     return is_approved
 
@@ -108,15 +109,17 @@ def run_auxiliary_rule_six(table):
 
 
 # General initial rule: ID validation
-def general_validation_ids(df_control, df_to_validate, file):
+def general_validation_ids(df_control, df_to_validate, filename):
     print(f"\n\033[95m Validating IDS :\033[0m\n")
     general_validation = DataValidator(df_to_validate)
     general_validation.check_general_duplications(df_to_validate)
     general_validation.check_duplications_applying_normalisation('participant_identifier')
-    general_validation.check_correct_ids(df_control, id_column=0)
+    general_validation.compare_ids_with_redcap_ids(df_control, id_column=0)
+    general_validation.check_typos_in_ids(id_column=0)
+    df_report = general_validation.report(ISSUES_PATH, filename)
     # Cleaning process
-    general_cleaning = DataCleaning(df_to_validate)
-    general_cleaning.ids_structure_correction(id_column='participant_identifier', filename=file)
+    general_cleaning = DataCleaning(df_report)
+    # general_cleaning.ids_structure_correction(id_column='participant_identifier', filename=file)
 
 
 # Alternative function to run ID validation from CSV/EXCEL files instead of SQL tables
@@ -144,7 +147,7 @@ def run_id_validation_from_df(reference_directory, test_directory, filename):
 def main():
 
     # -- Rule 0: ID validation
-    run_id_validation_from_df(ID_CONTROL_PATH, ID_SAMPLE_PATH, 'extracted')
+    run_id_validation_from_df(ID_CONTROL_PATH, ID_SAMPLE_PATH, 'extract')
 
     # -- Rule 1: Apply validation for 'Kind-of-participant'.
     read_kind_participants_df = connect_and_fetch_table("Kind-of-participant")
@@ -198,21 +201,21 @@ def main():
     run_rule_six(read_end_df, new_saq_df)
 
     # -- EXTRA ACTION: SEARCH
-    # input_value = ['Screening']        # TODO: Change these values for real IDs or value to search.
-    # execute_search(input_value)
+    input_value = ['Screening']        # TODO: Change these values for real IDs or value to search.
+    execute_search(input_value)
 
-    # # Control fixed, generated file from Rule 1.
-    # for filename in os.listdir(FIXES_PATH):
-    #     if "Kind-of-participant" in filename and filename.endswith(".csv"):
-    #         read_new_kind_participants_df = pd.read_csv(os.path.join(FIXES_PATH, filename))
-    #         run_rule_one(read_new_kind_participants_df)
+    # Control fixed, generated file from Rule 1.
+    for filename in os.listdir(FIXES_PATH):
+        if "Kind-of-participant" in filename and filename.endswith(".csv"):
+            read_new_kind_participants_df = pd.read_csv(os.path.join(FIXES_PATH, filename))
+            run_rule_one(read_new_kind_participants_df)
 
-    # # ORIGINAL FILE
-    # filename = "original-Kind-of-participant.csv"
-    # if "Kind-of-participant" in filename and filename.endswith(".csv"):
-    #     read_new_kind_participants_df = pd.read_csv(filename, sep=';')
-    #     print(read_new_kind_participants_df.head(3))
-    #     run_general_validation(read_new_kind_participants_df)
+    # ORIGINAL FILE
+    filename = "original-Kind-of-participant.csv"
+    if "Kind-of-participant" in filename and filename.endswith(".csv"):
+        read_new_kind_participants_df = pd.read_csv(filename, sep=';')
+        print(read_new_kind_participants_df.head(3))
+        run_general_validation(read_new_kind_participants_df)
 
 
 if __name__ == "__main__":
