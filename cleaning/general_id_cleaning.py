@@ -7,29 +7,30 @@ from config.config_loader import load_config_file
 
 VALID_CENTER_ACRONYMS = ["BI", "LE", "MA", "WI", "BR", "KO", "CA", "LO"]
 VALID_PARTICIPANT_TYPES = ["P", "C", "A"]
-
 VALID_PATTERN_USING_MINUS = re.compile(r"^I-(" + "|".join(VALID_CENTER_ACRONYMS) + r")-(" + "|".join(VALID_PARTICIPANT_TYPES) + r")-\d{3}$")
 VALID_PATTERN_USING_UNDERSCORE = re.compile(r"^I_(" + "|".join(["WI", "MA"]) + r")_(" + "|".join(VALID_PARTICIPANT_TYPES) + r")_\d{3}$")
-
 VALID_ESM_IDS_PATH = load_config_file('auxiliarFiles', 'ids_reference_esm')
 
 
-# TODO: Uncomment method when "merged_ids_reference.xlsx" needs to be created.
-# def get_ids_reference_esm():
-#     reference_all_ids = []
-#
-#     for file in os.listdir(VALID_ESM_IDS_PATH):
-#         # print(f"Processing file {file}")
-#
-#         if file.endswith(".xlsx") and not '~' in file:
-#             df = pd.read_excel(os.path.join(VALID_ESM_IDS_PATH, file))
-#             df_filter = df[['participant_id', 'study_ID (MaganaMed)']]
-#             reference_all_ids.append(df_filter)
-#
-#     all_ids_ref_df = pd.concat(reference_all_ids)
-#     filter_all_ids = all_ids_ref_df.drop_duplicates()
-#     filter_all_ids.to_excel(os.path.join(VALID_ESM_IDS_PATH, "merged_ids_reference.xlsx"), index=False)
-#     return filter_all_ids
+def get_ids_reference_esm():
+    reference_all_ids = []
+
+    for file in os.listdir(VALID_ESM_IDS_PATH):
+        print(f"Processing file {file}")
+
+        if file.endswith(".xlsx") and not '~' in file:
+            df = pd.read_excel(os.path.join(VALID_ESM_IDS_PATH, file))
+            df_filter = df[['participant_id', 'SiteCode', 'study_ID (MaganaMed)']]
+            reference_all_ids.append(df_filter)
+
+    all_ids_ref_df = pd.concat(reference_all_ids)
+    duplicates = all_ids_ref_df[all_ids_ref_df.duplicated()]
+    print("Numer duplicates found:", len(duplicates), " duplicates:\n", duplicates)
+    duplicates.to_excel(os.path.join(VALID_ESM_IDS_PATH, "duplicated_ids_reference.xlsx"), index=False)
+    filter_all_ids = all_ids_ref_df.drop_duplicates()
+    filter_all_ids['Action'] = filter_all_ids['Action']
+    filter_all_ids.to_excel(os.path.join(VALID_ESM_IDS_PATH, "new_merged_ids_reference.xlsx"), index=False)
+    return filter_all_ids
 
 
 class DataCleaning:
@@ -42,25 +43,26 @@ class DataCleaning:
     def ids_correction_for_movisensxs(self, fixes_path, filename):
         df_issues = self.df.copy()
         # generate_esm_ids_reference = get_ids_reference_esm()  # TODO: uncomment to create 'merged_ids_reference.xlsx'
-        merged_ids_reference_df = read_excel(VALID_ESM_IDS_PATH)
-        merged_ids_reference_df.rename(columns={merged_ids_reference_df.columns[0]: 'participant_identifier'},
-                                       inplace=True)
-        merged_ids_reference_df.rename(columns={merged_ids_reference_df.columns[1]: 'correct_participant_identifier'},
-                                       inplace=True)
 
-        df_fixes = pd.merge(df_issues, merged_ids_reference_df, on='participant_identifier', how='left')
-        df_fixes_filtered = df_fixes.drop_duplicates()
-        # df_fixes_filtered.to_csv(os.path.join(fixes_path, f'fixes_{filename}'), index=False)
-        self.df = df_fixes_filtered
-        return self
+        if os.path.exists(os.path.join(VALID_ESM_IDS_PATH, "merged_ids_reference.xlsx")):
+            merged_ids_reference_df = read_excel(os.path.join(VALID_ESM_IDS_PATH, "merged_ids_reference.xlsx"))
+            merged_ids_reference_df.rename(columns={merged_ids_reference_df.columns[0]: 'participant_identifier'},inplace=True)
+            merged_ids_reference_df.rename(columns={merged_ids_reference_df.columns[2]: 'correct_participant_identifier'}, inplace=True)
+
+            df_issues['participant_identifier'] = df_issues['participant_identifier'].astype(str)
+            merged_ids_reference_df['participant_identifier'] = merged_ids_reference_df['participant_identifier'].astype(str)
+
+            self.clean_df = pd.merge(df_issues, merged_ids_reference_df, on='participant_identifier', how='inner')
+            self.clean_df.to_csv(os.path.join(fixes_path, f'changes_{filename}'), index=False)
+            return self.clean_df
+        else:
+            print("Filepath does not exist.")
 
     def ids_correction_by_regex(self, fixes_path, filename):
-        df_fixes = self.df.copy()
+        df_fixes = self.clean_df.copy()
+        print(df_fixes.head())
         filtering_mask = ((df_fixes['issue_type'] == 'invalid_id') &
                           (df_fixes['correct_participant_identifier'].isna()))
-
-        # |
-        # (df_fixes['correct_participant_identifier'] == '')))
 
         def run_id_correction(idx):
             print(f"applying ids correction for {idx}")
@@ -98,16 +100,18 @@ class DataCleaning:
             lambda row: (
                 'switch' if row['issue_type'] == 'invalid_id' and pd.notna(row['correct_participant_identifier'])
                             and row['correct_participant_identifier'] != '' else 'delete' if row[
-                            'issue_type'] == 'invalid_id' and (pd.isna(row['correct_participant_identifier']) or
-                            row['correct_participant_identifier'] == '') else row['Action']), axis=1
-            )
+                            'issue_type'] == 'invalid_id' and (
+                            pd.isna(row['correct_participant_identifier']) or
+                            row['correct_participant_identifier'] == '') else
+                            row['Action']), axis=1
+                )
 
-        # df_fixes.to_csv(os.path.join(fixes_path, f'second_fixes_{filename}'), index=False)
-        # return df_fixes
+        df_fixes.to_csv(os.path.join(fixes_path, f'second_fixes_{filename}'), index=False)
+        return df_fixes
 
     def ids_structure_correction(self, fixes_path, filename):
-
         print(f"\n\033[32mStarting cleaning process from '{filename}' \033[0m\n")
+        self.clean_df = self.ids_correction_for_movisensxs(fixes_path, filename)
+        # self.clean_df = self.ids_correction_by_regex(fixes_path, filename)
+        # print(self.clean_df)
 
-        self.ids_correction_for_movisensxs(fixes_path, filename)
-        self.ids_correction_by_regex(fixes_path, filename)
