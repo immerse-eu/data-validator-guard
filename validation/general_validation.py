@@ -77,14 +77,14 @@ class DataValidator:
                 if VALID_PATTERN_USING_MINUS.match(idx) or VALID_PATTERN_USING_UNDERSCORE.match(idx):
                     return 'valid_id'
                 else:
-                    return 'invalid_id'
+                    return 'invalid_id_pattern'
 
         for idx in id_validation:
             if isinstance(idx, str):
                 validate_id(idx)
 
         id_validation['issue_type'] = id_validation.iloc[:, id_column].apply(validate_id)
-        filter_issues = id_validation[id_validation['issue_type'] == 'invalid_id']
+        filter_issues = id_validation[id_validation['issue_type'] == 'invalid_id_pattern']
 
         if filter_issues.empty:
             print(f"\n ✔ | Validation of typos passed: No typos were found in column '{id_column}'.")
@@ -94,33 +94,36 @@ class DataValidator:
             # print(self.issues)
 
     def compare_ids_with_redcap_ids(self, df_control, id_column):
-        # self.df[id_column] = self.df[id_column].str.strip()
-        # comparison_ids = set(self.df[id_column].dropna())
-        # control_ids = set(df_control[id_column].dropna())
-
         comparison_ids = set(self.df.iloc[:, 0].dropna().astype(str).str.strip())
-        control_ids = set(df_control.iloc[:, 0].dropna().astype(str).str.strip())
+        control_redcap_ids = set(df_control.iloc[:, 0].dropna().astype(str).str.strip())
 
-        print(f"  | Control file length: {len(control_ids)}")
-        print(f"  | Test file length: {len(comparison_ids)}")
+        print(f"  | Total Reference ids length: {len(control_redcap_ids)}")
+        print(f"  | Current test file length: {len(comparison_ids)}")
 
-        missing_ids = control_ids - comparison_ids
-        extra_ids = comparison_ids - control_ids
+        missing_ids = control_redcap_ids - comparison_ids
+        extra_ids = comparison_ids - control_redcap_ids
 
         print(f"  | {len(missing_ids)} Missing IDs in test file: ", list(missing_ids))
         print(f"  | {len(extra_ids)} Extra IDs in test file: ", list(extra_ids))
 
-        # len_discrepancies = self.df[
-        #     self.df[id_column].apply(lambda x: not isinstance(x, str) or len(x) != 10 if pd.notnull(x) else False)]
-        #
-        # print(f"\nNumber of IDs discrepancies: {len(len_discrepancies[id_column])} ")
-        # print(len_discrepancies[[id_column, 'site']])
+        if extra_ids:
+            extra_ids = self.df[self.df["participant_identifier"].astype(str).str.strip().isin(extra_ids)].copy()
+            extra_ids["issue_type"] = "unknown_id_reference"
+            self.issues.append(extra_ids[["participant_identifier", "issue_type"]])
 
     def report(self, export_path, filename):
         if self.issues:
             all_issues_df = pd.concat(self.issues, ignore_index=True)
-            all_issues_df.to_csv(os.path.join(export_path, f'issues_{filename}.csv'), index=False)
-            print(f"\n All general issues exported as: {f'issues_{filename}.csv'}")
+            all_issues_df['issue_type'] = all_issues_df['issue_type'].astype(str)
+            grouped_issues = (
+                all_issues_df
+                .groupby("participant_identifier", as_index=False)
+                .agg({"issue_type": lambda x: ", ".join(sorted(set(x)))})
+            )
+            grouped_issues = grouped_issues.sort_values(by=["issue_type", "participant_identifier"], ascending=True)
+            grouped_issues.to_csv(os.path.join(export_path, f"issues_{filename}"), index=False)
+            print(f"\n All general issues exported as: {f'issues_{filename}'}")
+            return all_issues_df
         else:
             print("\n Report from general validation process: All validations were successfully passed ✔ !!")
 
