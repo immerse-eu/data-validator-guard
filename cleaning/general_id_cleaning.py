@@ -40,17 +40,35 @@ class DataCleaning:
     def __init__(self, df):
         self.df = df
         self.clean_df = df.copy()
-        # self.ems_rulebook_df = ems_rulebook_df.copy()
 
-    # def _prepare_corrections(self):
-    #     self.delete_ids = set(self.ems_rulebook_df.loc[self.ems_rulebook_df]["Action"] == "delete", "participant_id")
+    def execute_corrections_to_original_tables(self, original_directory:str):
+        df_issues = self.df.copy()
+        immerse_clean_dfs = {}
+
+        for folder, _, files in os.walk(original_directory):
+            sub_folder_name = os.path.basename(folder)
+            immerse_clean_dfs[sub_folder_name] = {}
+
+            for filename in files:
+                if not filename.endswith(".xlsx") or filename.endswith(".csv"):
+                    continue
+                if "Fidelity" in filename or "master_ids" in filename:   # These files use another labeling
+                    continue
+                filepath = os.path.join(folder, filename)
+                try:
+                    current_df = pd.read_excel(filepath) if filename.endswith(".xlsx") else pd.read_csv(filepath)
+                    print(f"Processing {filename}: \n", current_df.info())
+                    # clean_df = self._apply_changes_from_esm_rulebook(current_df)
+                    # immerse_clean_dfs[folder_name][filename] = clean_df
+                except Exception as e:
+                    print(f"Unexpected error in  {filename}", e)
+
 
     def issues_to_correct_from_esm_rulebook(self, esm_rulebook, fixes_path, filename):
         df_issues = self.df.copy()
-
         merged_esm_ids_rulebook_df = esm_rulebook
-        merged_esm_ids_rulebook_df.rename(columns={merged_esm_ids_rulebook_df.columns[0]: 'participant_identifier'},inplace=True)
-        merged_esm_ids_rulebook_df.rename(columns={merged_esm_ids_rulebook_df.columns[1]: 'participant_number'},inplace=True)
+        merged_esm_ids_rulebook_df.rename(columns={merged_esm_ids_rulebook_df.columns[0]: 'participant_identifier'}, inplace=True)
+        merged_esm_ids_rulebook_df.rename(columns={merged_esm_ids_rulebook_df.columns[1]: 'participant_number'}, inplace=True)
         merged_esm_ids_rulebook_df.rename(columns={merged_esm_ids_rulebook_df.columns[3]: 'correct_participant_identifier'}, inplace=True)
 
         df_issues['participant_identifier'] = df_issues['participant_identifier'].astype(str)
@@ -112,9 +130,12 @@ class DataCleaning:
         df_fixes.to_csv(os.path.join(fixes_path, f'second_fixes_{filename}'), index=False)
         return df_fixes
 
-    def ids_structure_correction(self, esm_rulebook, changes_path, outcome_path, filename):
+    def ids_structure_correction(self, esm_rulebook, changes_path, original_source_path, filename):
         print(f"\n\033[32mStarting cleaning process from '{filename}' \033[0m\n")
 
-        self.clean_df = self.issues_to_correct_from_esm_rulebook(esm_rulebook, changes_path, filename)
+        # self.clean_df = self.issues_to_correct_from_esm_rulebook(esm_rulebook, changes_path, filename)
+        # self.execute_corrections_to_original_tables(original_source_path, esm_rulebook)
+        self.execute_corrections_to_original_tables(original_source_path)
+
         # self.clean_df = self.ids_correction_by_regex(changes_path, filename)
-        print(self.clean_df)
+        # print(self.clean_df)
