@@ -41,9 +41,62 @@ class DataCleaning:
         self.df = df
         self.clean_df = df.copy()
 
+        self.delete_ids = set()
+        self.merge_ids = {}
+        self.add_ids = {}
+        self.update_ids = {}
+        self.assign_id_to_T1 = set()
+        self.assign_id_to_T2 = set()
+        self.assign_id_to_T3 = set()
+
+    def changes_to_apply_when_using_rulebook(self, rulebook):
+
+        for _, row in rulebook.iterrows():
+            original_id = row['participant_identifier']
+            participant_num = row['participant_number']
+            correct_participant_id = row.get('correct_participant_identifier')
+
+            action = str(row['action']).strip().lower()
+            key = (original_id, participant_num)
+
+            if action == 'delete':
+                self.delete_ids.add(key)
+            elif action.startswith('merge'):
+                self.merge_ids[key] = correct_participant_id # TODO: review correctness of merging
+                # self.merge_ids[participant_num] = action.split('merge')[-1].strip() # TODO: review merging
+            elif action.startswith('add'):
+                self.add_ids[participant_num] = correct_participant_id
+            elif action.startswith('use'):
+                if "T1" in action: self.assign_id_to_T1[key].add(correct_participant_id) # TODO: review merging
+                if "T2" in action: self.assign_id_to_T2.add(key)
+                if "T3" in action: self.assign_id_to_T3.add(key)
+            else:
+                self.update_ids[key] = correct_participant_id
+
+    def _apply_changes_from_esm_rulebook(self, current_df):
+        current_immerse_df = current_df.copy()
+        current_immerse_df.rename(columns={current_immerse_df['id']: 'participant_identifier'}, inplace=True)
+        current_immerse_df.rename(columns={current_immerse_df['Participant']: 'participant_number'}, inplace=True)
+
+        # Case 1: Deletion
+        current_immerse_df = current_immerse_df[~current_immerse_df.apply(
+            lambda row: (row['participant_identifier'], row['participant_number']) in self.delete_ids, axis=1)]
+
+        # Case 2: Merging
+        current_immerse_df['participant_identifier'] = current_immerse_df.apply(
+            lambda row: self.merge_ids.get(row['participant_number'], row['participant_identifier']), axis=1)
+
+        # Case 3: Adding
+        current_immerse_df['participant_identifier'] = current_immerse_df.apply(
+            lambda row: self.add_ids.get(row['participant_number'], row['participant_identifier'])
+            if pd.isna(row['participant_identifier']) else row['participant_identifier'],axis=1)
+
+        # TODO: Include Update IDs!
+
     def execute_corrections_to_original_tables(self, original_directory:str):
         df_issues = self.df.copy()
         immerse_clean_dfs = {}
+        files_to_exclude = ["Fidelity", "master_ids", "table_for_IDprocessing_allCentersVer6"]
 
         for folder, _, files in os.walk(original_directory):
             sub_folder_name = os.path.basename(folder)
@@ -52,17 +105,18 @@ class DataCleaning:
             for filename in files:
                 if not filename.endswith(".xlsx") or filename.endswith(".csv"):
                     continue
-                if "Fidelity" in filename or "master_ids" in filename:   # These files use another labeling
+                if filename in files_to_exclude:   # These files use another labeling
                     continue
                 filepath = os.path.join(folder, filename)
                 try:
                     current_df = pd.read_excel(filepath) if filename.endswith(".xlsx") else pd.read_csv(filepath)
-                    print(f"Processing {filename}: \n", current_df.info())
+                    # print(f"Processing {filename}: \n", current_df.info())
                     # clean_df = self._apply_changes_from_esm_rulebook(current_df)
                     # immerse_clean_dfs[folder_name][filename] = clean_df
                 except Exception as e:
                     print(f"Unexpected error in  {filename}", e)
 
+        return immerse_clean_dfs
 
     def issues_to_correct_from_esm_rulebook(self, esm_rulebook, fixes_path, filename):
         df_issues = self.df.copy()
