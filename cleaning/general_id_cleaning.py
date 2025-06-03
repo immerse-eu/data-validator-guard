@@ -12,7 +12,7 @@ VALID_PATTERN_USING_UNDERSCORE = re.compile(r"^I_(" + "|".join(["WI", "MA"]) + r
 VALID_ESM_IDS_PATH = load_config_file('auxiliarFiles', 'ids_reference_esm')
 
 
-def get_ids_reference_esm():
+def create_merged_esm_ids_rulebook():
     reference_all_ids = []
 
     for file in os.listdir(VALID_ESM_IDS_PATH):
@@ -20,7 +20,8 @@ def get_ids_reference_esm():
 
         if file.endswith(".xlsx") and not '~' in file:
             df = pd.read_excel(os.path.join(VALID_ESM_IDS_PATH, file))
-            df_filter = df[['participant_id', 'SiteCode', 'study_ID (MaganaMed)']]
+            df_filter = df[['participant_id', 'participant_movi_nr', 'SiteCode', 'study_ID (MaganaMed)']]
+            df_filter = df_filter[df_filter['participant_id'] != "example"]
             reference_all_ids.append(df_filter)
 
     all_ids_ref_df = pd.concat(reference_all_ids)
@@ -28,8 +29,9 @@ def get_ids_reference_esm():
     print("Numer duplicates found:", len(duplicates), " duplicates:\n", duplicates)
     duplicates.to_excel(os.path.join(VALID_ESM_IDS_PATH, "duplicated_ids_reference.xlsx"), index=False)
     filter_all_ids = all_ids_ref_df.drop_duplicates()
-    filter_all_ids['Action'] = filter_all_ids['Action']
-    filter_all_ids.to_excel(os.path.join(VALID_ESM_IDS_PATH, "new_merged_ids_reference.xlsx"), index=False)
+    filter_all_ids['Action'] = filter_all_ids['study_ID (MaganaMed)'].apply(
+        lambda x: "delete" if " " in str(x) or "delete" in str(x) or "TEST" in str(x) else "")
+    filter_all_ids.to_excel(os.path.join(VALID_ESM_IDS_PATH, "new_merged_esm_ids_rulebook.xlsx"), index=False)
     return filter_all_ids
 
 
@@ -38,25 +40,26 @@ class DataCleaning:
     def __init__(self, df):
         self.df = df
         self.clean_df = df.copy()
+        # self.ems_rulebook_df = ems_rulebook_df.copy()
 
-    # This outcome is generated from Anita files allESM
-    def ids_correction_for_movisensxs(self, fixes_path, filename):
+    # def _prepare_corrections(self):
+    #     self.delete_ids = set(self.ems_rulebook_df.loc[self.ems_rulebook_df]["Action"] == "delete", "participant_id")
+
+    def issues_to_correct_from_esm_rulebook(self, esm_rulebook, fixes_path, filename):
         df_issues = self.df.copy()
-        # generate_esm_ids_reference = get_ids_reference_esm()  # TODO: uncomment to create 'merged_ids_reference.xlsx'
 
-        if os.path.exists(os.path.join(VALID_ESM_IDS_PATH, "merged_ids_reference.xlsx")):
-            merged_ids_reference_df = read_excel(os.path.join(VALID_ESM_IDS_PATH, "merged_ids_reference.xlsx"))
-            merged_ids_reference_df.rename(columns={merged_ids_reference_df.columns[0]: 'participant_identifier'},inplace=True)
-            merged_ids_reference_df.rename(columns={merged_ids_reference_df.columns[2]: 'correct_participant_identifier'}, inplace=True)
+        merged_esm_ids_rulebook_df = esm_rulebook
+        merged_esm_ids_rulebook_df.rename(columns={merged_esm_ids_rulebook_df.columns[0]: 'participant_identifier'},inplace=True)
+        merged_esm_ids_rulebook_df.rename(columns={merged_esm_ids_rulebook_df.columns[1]: 'participant_number'},inplace=True)
+        merged_esm_ids_rulebook_df.rename(columns={merged_esm_ids_rulebook_df.columns[3]: 'correct_participant_identifier'}, inplace=True)
 
-            df_issues['participant_identifier'] = df_issues['participant_identifier'].astype(str)
-            merged_ids_reference_df['participant_identifier'] = merged_ids_reference_df['participant_identifier'].astype(str)
+        df_issues['participant_identifier'] = df_issues['participant_identifier'].astype(str)
+        merged_esm_ids_rulebook_df['participant_identifier'] = merged_esm_ids_rulebook_df[
+            'participant_identifier'].astype(str)
 
-            self.clean_df = pd.merge(df_issues, merged_ids_reference_df, on='participant_identifier', how='inner')
-            self.clean_df.to_csv(os.path.join(fixes_path, f'changes_{filename}'), index=False)
-            return self.clean_df
-        else:
-            print("Filepath does not exist.")
+        self.clean_df = pd.merge(df_issues, merged_esm_ids_rulebook_df, on='participant_identifier', how='inner')
+        # self.clean_df.to_csv(os.path.join(fixes_path, f'changes_{filename}'), index=False)
+        return self.clean_df
 
     def ids_correction_by_regex(self, fixes_path, filename):
         df_fixes = self.clean_df.copy()
@@ -109,9 +112,9 @@ class DataCleaning:
         df_fixes.to_csv(os.path.join(fixes_path, f'second_fixes_{filename}'), index=False)
         return df_fixes
 
-    def ids_structure_correction(self, fixes_path, filename):
+    def ids_structure_correction(self, esm_rulebook, changes_path, outcome_path, filename):
         print(f"\n\033[32mStarting cleaning process from '{filename}' \033[0m\n")
-        self.clean_df = self.ids_correction_for_movisensxs(fixes_path, filename)
-        # self.clean_df = self.ids_correction_by_regex(fixes_path, filename)
-        # print(self.clean_df)
 
+        self.clean_df = self.issues_to_correct_from_esm_rulebook(esm_rulebook, changes_path, filename)
+        # self.clean_df = self.ids_correction_by_regex(changes_path, filename)
+        print(self.clean_df)

@@ -121,9 +121,9 @@ class DataValidator:
                 .agg({"issue_type": lambda x: ", ".join(sorted(set(x)))})
             )
             grouped_issues = grouped_issues.sort_values(by=["issue_type", "participant_identifier"], ascending=True)
-            grouped_issues.to_csv(os.path.join(export_path, f"issues_{filename}"), index=False)
+            # grouped_issues.to_csv(os.path.join(export_path, f"issues_{filename}"), index=False)
             print(f"\n All general issues exported as: {f'issues_{filename}'}")
-            return all_issues_df
+            return grouped_issues
         else:
             print("\n Report from general validation process: All validations were successfully passed ✔ !!")
 

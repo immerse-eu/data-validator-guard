@@ -2,7 +2,7 @@ import os
 import sqlite3
 import pandas as pd
 
-from cleaning.general_id_cleaning import DataCleaning
+from cleaning.general_id_cleaning import DataCleaning, create_merged_esm_ids_rulebook
 from config.config_loader import load_config_file
 from validation.general_validation import DataValidator
 from validation.maganamed_validation import (
@@ -14,11 +14,16 @@ CSRI_list = ["CSRI", "CSRI_GE", "CSRI_BE", "CSRI_SK"]
 valid_center_names = VALID_SITE_CODES_AND_CENTER_NAMES.values()
 
 DB_PATH = load_config_file('researchDB', 'db_path')
-ISSUES_PATH = load_config_file('reports', 'issues')
-FIXES_PATH = load_config_file('reports', 'fixes')
 NEW_DB_PATH = load_config_file('researchDB', 'cleaned_db')
+
+ISSUES_PATH = load_config_file('reports', 'issues')
+CHANGES_PATH = load_config_file('reports', 'changes')
+FIXES_PATH = load_config_file('reports', 'fixes')
+
 ID_CONTROL_PATH = load_config_file('auxiliarFiles', 'ids_reference')
 ID_SAMPLE_PATH = load_config_file('auxiliarFiles', 'ids_to_verify')
+ID_ESM_RULEBOOK_PATH = load_config_file('auxiliarFiles', 'ids_reference_esm')
+NEW_SOURCE_PATH = load_config_file('updated_source', 'immerse_clean')
 
 
 def connect_and_fetch_table(table_name):
@@ -109,37 +114,42 @@ def run_auxiliary_rule_six(table):
 
 
 # General initial rule: ID validation
-def general_validation_ids(df_control, df_to_validate, filename):
+def general_validation_ids(df_control, esm_rulebook, df_to_validate, file):
     print(f"\n\033[95m Validating IDS :\033[0m\n")
     general_validation = DataValidator(df_to_validate)
     general_validation.check_general_duplications(df_to_validate)
     general_validation.check_duplications_applying_normalisation('participant_identifier')
     general_validation.compare_ids_with_redcap_ids(df_control, id_column=0)
     general_validation.check_typos_in_ids(id_column=0)
-    df_report = general_validation.report(ISSUES_PATH, filename)
+    df_report = general_validation.report(ISSUES_PATH, file)
     # Cleaning process
     general_cleaning = DataCleaning(df_report)
-    # general_cleaning.ids_structure_correction(id_column='participant_identifier', filename=file)
+    general_cleaning.ids_structure_correction(esm_rulebook, CHANGES_PATH, NEW_SOURCE_PATH, file)
 
 
 # Alternative function to run ID validation from CSV/EXCEL files instead of SQL tables
-def run_id_validation_from_df(reference_directory, test_directory, filename):
-    if os.path.exists(reference_directory):
-        df_control = pd.read_excel(reference_directory)
-        print(f"\n\033[34mControl file: '{os.path.basename(reference_directory)}' \033[0m\n")
-        print(df_control.info())
+def run_id_validation_from_df(reference_all_ids_directory, esm_rulebook, test_directory, filename):
+    if os.path.exists(reference_all_ids_directory):
+        df_control = pd.read_excel(reference_all_ids_directory)
+
+    esm_filepath = os.path.join(esm_rulebook, "merged_esm_ids_rulebook.xlsx")
+    if os.path.exists(esm_filepath):
+        esm_rulebook_df = pd.read_excel(esm_filepath)
+    # else: # TODO: Uncomment if this rulebook needs to be created.
+        # get_ids_reference_esm()
+        # esm_rulebook_df = pd.read_excel(esm_filepath)
 
         for file in os.listdir(test_directory):
             if file.startswith(filename):
                 if file.endswith(".csv"):
                     csv_df = pd.read_csv(os.path.join(test_directory, file))  # File(s) to validate
                     print(f"\n\033[34mFile to validate: '{file}' \033[0m\n")
-                    general_validation_ids(df_control, csv_df, file)
+                    general_validation_ids(df_control, esm_rulebook_df, csv_df, file)
 
                 elif file.endswith(".xlsx"):
                     excel_df = pd.read_excel(os.path.join(test_directory, file))  # File(s) to validate
                     print(f"\n\033[34mFile to validate:'{file}' \033[0m\n")
-                    general_validation_ids(df_control, excel_df, file)
+                    general_validation_ids(df_control, esm_rulebook_df, excel_df, file)
     else:
         print(f"\n\033[34mFilepath not found!\033[0m\n")
 
@@ -147,7 +157,7 @@ def run_id_validation_from_df(reference_directory, test_directory, filename):
 def main():
 
     # -- Rule 0: ID validation
-    run_id_validation_from_df(ID_CONTROL_PATH, ID_SAMPLE_PATH, 'extract')
+    run_id_validation_from_df(ID_CONTROL_PATH, ID_ESM_RULEBOOK_PATH, ID_SAMPLE_PATH, 'extracted')
 
     # -- Rule 1: Apply validation for 'Kind-of-participant'.
     read_kind_participants_df = connect_and_fetch_table("Kind-of-participant")
