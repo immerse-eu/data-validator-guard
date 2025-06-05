@@ -15,15 +15,30 @@ LOCATION_NAMES_ESM = {
     6: "SK_Kosice_Female"
 }
 
+
 class MovisensxsValidation:
 
     def __init__(self, df):
-        self.movisensxs = df
+        self.movisensxs_df = df
         self.movisensxs_issues = []
 
     # Category: MovisensESM
     def validate_visit_and_country_assignation(self, filename):
-        # TODO: 1 Validate that the Table' name fits with the data. Example: IMMERSE_[VISIT]_[COUNTRY]. check functionality.
-        filename_stuctrure = f"IMMERSE_{VALID_TYPE_VISIT_ATTENDANCE.values()}_{LOCATION_NAMES_ESM.values()}"
-        if filename in filename_stuctrure:
-            print(filename_stuctrure)
+        def control_filename_structure():
+            for visit in VALID_TYPE_VISIT_ATTENDANCE.values():
+                for location in LOCATION_NAMES_ESM.values():
+                    filename_structure = f"IMMERSE_{visit}_{location}"
+                    if filename == filename_structure:
+                        print(f"\n ✔ | Valid filename for: {filename} & {filename_structure}")
+                        correct_site = visit in self.movisensxs_df['SiteCode'].unique()
+                        correct_location = location in self.movisensxs_df['SiteCode'].unique()
+                        return filename_structure, correct_site, correct_location
+
+        valid_filename_structure, valid_site, valid_location = control_filename_structure()
+        if not valid_filename_structure:
+            print(f"\n❌ | Issue found in name: Invalid {filename}")
+            self.movisensxs_issues.append(filename)  # Double check
+
+        if not valid_site and valid_location:
+            print(f"\n❌ | Issue in code assignation: SiteCode: {valid_site},  LocationCode: {valid_location}")
+            self.movisensxs_issues.append(filename) # Double check

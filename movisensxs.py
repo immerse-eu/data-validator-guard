@@ -42,16 +42,16 @@ movisens_esm_filenames = [
 
 
 # Rule X: Filename contains right data that fits with "Visit" and "Country" selection.
-def movisensxs_rule_one(df, filename):
+def movisensxs_rule_one(df, table_name):
+    print(f"\n\033[95m Validating '{table_name}' for Visit and Country selection:\033[0m\n")
     rules_movisensxs_validation = MovisensxsValidation(df)
-    rules_movisensxs_validation.validate_visit_and_country_assignation(filename)
+    rules_movisensxs_validation.validate_visit_and_country_assignation(table_name)
 
 
 # TODO: Upload movisensxs into DB
 def run_movisensxs_validation():
     for filename in movisens_esm_filenames:
         read_df = connect_and_fetch_table(filename)
-        print(read_df.info())
         movisensxs_rule_one(read_df, filename)
 
 
