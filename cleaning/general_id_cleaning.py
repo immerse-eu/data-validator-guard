@@ -1,9 +1,11 @@
 import os
 import re
+import warnings
 import pandas as pd
-from pandas import read_excel
 
 from config.config_loader import load_config_file
+
+warnings.simplefilter(action='ignore', category=UserWarning)
 
 VALID_CENTER_ACRONYMS = ["BI", "LE", "MA", "WI", "BR", "KO", "CA", "LO"]
 VALID_PARTICIPANT_TYPES = ["P", "C", "A"]
@@ -39,6 +41,7 @@ class DataCleaning:
 
     def __init__(self, df):
         self.df = df
+        self.changes_df = df.copy()
         self.clean_df = df.copy()
 
         self.delete_ids = set()
@@ -50,32 +53,49 @@ class DataCleaning:
         self.assign_id_to_T3 = set()
 
     def changes_to_apply_when_using_rulebook(self, rulebook):
+        # self.changes_df.copy()
+        # print(rulebook.info())
 
         for _, row in rulebook.iterrows():
-            original_id = row['participant_identifier']
-            participant_num = row['participant_number']
-            correct_participant_id = row.get('correct_participant_identifier')
+            participant_identifier = row['participant_identifier']
+            participant_number = row['participant_number']
+            correct_participant_identifier = row.get('correct_participant_identifier')
 
-            action = str(row['action']).strip().lower()
-            key = (original_id, participant_num)
+            action = str(row['action']).strip()
+            key = (participant_identifier, participant_number)
 
             if action == 'delete':
+                print("IDs to delete:", key)
                 self.delete_ids.add(key)
+
             elif action.startswith('merge'):
-                self.merge_ids[key] = correct_participant_id # TODO: review correctness of merging
-                # self.merge_ids[participant_num] = action.split('merge')[-1].strip() # TODO: review merging
+                # print("IDs to merge:", key, "action:", action)
+                extract_participant_number_to_merge = action.split("merge")[1]
+                if len(extract_participant_number_to_merge) > 2:
+                    get_participant_numbers = extract_participant_number_to_merge.split("-")
+                    print(key, get_participant_numbers)
+
+                    print('extract_participant_number_to_merge', extract_participant_number_to_merge)
+                    # self.merge_ids[key] = correct_participant_identifier   # TODO: review correctness of merging
+                    # self.merge_ids[participant_num] = action.split('merge')[-1].strip() # TODO: review merging
+
             elif action.startswith('add'):
-                self.add_ids[participant_num] = correct_participant_id
+                self.add_ids[participant_number] = correct_participant_identifier
             elif action.startswith('use'):
-                if "T1" in action: self.assign_id_to_T1[key].add(correct_participant_id) # TODO: review merging
+                if "T1" in action: self.assign_id_to_T1[key].add(correct_participant_identifier)    # TODO: review merging
                 if "T2" in action: self.assign_id_to_T2.add(key)
                 if "T3" in action: self.assign_id_to_T3.add(key)
             else:
-                self.update_ids[key] = correct_participant_id
+                self.update_ids[key] = correct_participant_identifier
 
     def _apply_changes_from_esm_rulebook(self, current_df):
         current_immerse_df = current_df.copy()
-        current_immerse_df.rename(columns={current_immerse_df['id']: 'participant_identifier'}, inplace=True)
+
+        # Column Names' homologation.
+        if 'id' in current_immerse_df.columns:
+            current_immerse_df.rename(columns={current_immerse_df['id']: 'participant_identifier'}, inplace=True)
+        if 'participant_id' in current_immerse_df.columns:
+            current_immerse_df.rename(columns={current_immerse_df['id']: 'participant_identifier'}, inplace=True)
         current_immerse_df.rename(columns={current_immerse_df['Participant']: 'participant_number'}, inplace=True)
 
         # Case 1: Deletion
@@ -93,10 +113,10 @@ class DataCleaning:
 
         # TODO: Include Update IDs!
 
-    def execute_corrections_to_original_tables(self, original_directory:str):
+    def execute_corrections_to_original_tables(self, original_directory: str):
         df_issues = self.df.copy()
         immerse_clean_dfs = {}
-        files_to_exclude = ["Fidelity", "master_ids", "table_for_IDprocessing_allCentersVer6"]
+        files_to_exclude = ["Sensing.xlsx", "codebook.xlsx", "~$IMMERSE_T0_BE.xlsx"]
 
         for folder, _, files in os.walk(original_directory):
             sub_folder_name = os.path.basename(folder)
@@ -109,9 +129,9 @@ class DataCleaning:
                     continue
                 filepath = os.path.join(folder, filename)
                 try:
-                    current_df = pd.read_excel(filepath) if filename.endswith(".xlsx") else pd.read_csv(filepath)
-                    # print(f"Processing {filename}: \n", current_df.info())
-                    # clean_df = self._apply_changes_from_esm_rulebook(current_df)
+                    current_df = pd.read_excel(filepath, engine='openpyxl') if filename.endswith(".xlsx") else pd.read_csv(filepath)
+                    # print(f"Processing  df from {filename}")
+                    clean_df = self._apply_changes_from_esm_rulebook(current_df)
                     # immerse_clean_dfs[folder_name][filename] = clean_df
                 except Exception as e:
                     print(f"Unexpected error in  {filename}", e)
@@ -129,9 +149,9 @@ class DataCleaning:
         merged_esm_ids_rulebook_df['participant_identifier'] = merged_esm_ids_rulebook_df[
             'participant_identifier'].astype(str)
 
-        self.clean_df = pd.merge(df_issues, merged_esm_ids_rulebook_df, on='participant_identifier', how='inner')
+        self.changes_df = pd.merge(df_issues, merged_esm_ids_rulebook_df, on='participant_identifier', how='inner')
         # self.clean_df.to_csv(os.path.join(fixes_path, f'changes_{filename}'), index=False)
-        return self.clean_df
+        return self.changes_df
 
     def ids_correction_by_regex(self, fixes_path, filename):
         df_fixes = self.clean_df.copy()
@@ -184,12 +204,21 @@ class DataCleaning:
         df_fixes.to_csv(os.path.join(fixes_path, f'second_fixes_{filename}'), index=False)
         return df_fixes
 
-    def ids_structure_correction(self, esm_rulebook, changes_path, original_source_path, filename):
+    '''
+    NOTE: 
+    
+    The following method requires 2 input sources to clean ids: 
+    - esm_rulebook: Contains all ESM ids and their correct id (here adds more ids).
+    - changes_path: Contains only those ids which were found in original data. 
+    
+    '''
+    def prepare_ids_correction_from_esm(self, esm_rulebook, changes_path, original_source_path, filename):
         print(f"\n\033[32mStarting cleaning process from '{filename}' \033[0m\n")
 
-        # self.clean_df = self.issues_to_correct_from_esm_rulebook(esm_rulebook, changes_path, filename)
+        self.changes_df = self.issues_to_correct_from_esm_rulebook(esm_rulebook, changes_path, filename)
+        return self.changes_df
         # self.execute_corrections_to_original_tables(original_source_path, esm_rulebook)
-        self.execute_corrections_to_original_tables(original_source_path)
+        # self.execute_corrections_to_original_tables(original_source_path)
 
-        # self.clean_df = self.ids_correction_by_regex(changes_path, filename)
+        # self.changes_df = self.ids_correction_by_regex(changes_path, filename)
         # print(self.clean_df)
