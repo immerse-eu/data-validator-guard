@@ -5,15 +5,25 @@ VALID_TYPE_VISIT_ATTENDANCE = {
     3: 'T3',
 }
 
-LOCATION_NAMES_ESM = {
-    0: "BE",
-    1: "UK",
-    2: "GE",
-    3: "SK",
-    4: "SK_Female",
-    5: "SK_Kosice",
-    6: "SK_Kosice_Female"
+''' "SITE_CODE_MAPPING" is unclear how was defined by GH,  but I am going to use suggested codes from Anita:'''
+
+SUGGESTION_SITE_CODING_ESM = {
+    0: "UK",
+    1: "GE",
+    2: "BE",
+    7: ["SK", "SK_Female"],
+    8: ["SK_Kosice", "SK_Kosice_Female"]
 }
+
+# SITE_CODE_MAPPING = {
+#     "UK": {0: 1, 1: 2},
+#     "GE": {0: 3, 1: 4},
+#     "BE": {0: 5, 1: 6},
+#     "SK": {0: 7, 1: 8},
+#     "SK_Female": {0: 7, 1: 8},
+#     "SK_Kosice": {0: 7, 1: 8},
+#     "SK_Kosice_Female": {0: 7, 1: 8},
+# }
 
 
 class MovisensxsValidation:
@@ -23,22 +33,34 @@ class MovisensxsValidation:
         self.movisensxs_issues = []
 
     # Category: MovisensESM
-    def validate_visit_and_country_assignation(self, filename):
+    def validate_visit_country_period_assignation(self, filename):
         def control_filename_structure():
-            for visit in VALID_TYPE_VISIT_ATTENDANCE.values():
-                for location in LOCATION_NAMES_ESM.values():
-                    filename_structure = f"IMMERSE_{visit}_{location}"
+
+            for code_visit, visit in VALID_TYPE_VISIT_ATTENDANCE.items():
+                for code_site, site in SUGGESTION_SITE_CODING_ESM.items():
+                    filename_structure = f"IMMERSE_{visit}_{site[0] if isinstance(site, list) else site}"
+
                     if filename == filename_structure:
                         print(f"\n ✔ | Valid filename for: {filename} & {filename_structure}")
-                        correct_site = visit in self.movisensxs_df['SiteCode'].unique()
-                        correct_location = location in self.movisensxs_df['SiteCode'].unique()
-                        return filename_structure, correct_site, correct_location
+                        correct_site_code = code_site in self.movisensxs_df['SiteCode'].unique()
+                        correct_visit_code = code_visit in self.movisensxs_df['VisitCode'].unique()
+                        correct_period = code_visit in self.movisensxs_df['period'].unique()
 
-        valid_filename_structure, valid_site, valid_location = control_filename_structure()
+                        print('visit_code: ', code_visit,  self.movisensxs_df['VisitCode'].unique())
+                        print('site_code: ', code_site, self.movisensxs_df['SiteCode'].unique())
+                        print('period: ', code_visit, self.movisensxs_df['period'].unique())
+                        print(correct_site_code, correct_visit_code, correct_period)
+                        return filename_structure, correct_site_code, correct_visit_code, correct_period
+
+        valid_filename_structure, valid_site, valid_location, valid_period = control_filename_structure()
+
         if not valid_filename_structure:
             print(f"\n❌ | Issue found in name: Invalid {filename}")
             self.movisensxs_issues.append(filename)  # Double check
 
-        if not valid_site and valid_location:
-            print(f"\n❌ | Issue in code assignation: SiteCode: {valid_site},  LocationCode: {valid_location}")
-            self.movisensxs_issues.append(filename) # Double check
+        if not valid_site or valid_location or valid_period:
+            print(f"\n❌ | Issue in code assignation:\n "
+                  f"SiteCode: {valid_site},\n "
+                  f"LocationCode: {valid_location}, \n"
+                  f"PeriodCode: {valid_location}, \n")
+            self.movisensxs_issues.append(filename)  # Double check
