@@ -15,6 +15,17 @@ SUGGESTION_SITE_CODING_ESM = {
     8: ["SK_Kosice", "SK_Kosice_Female"]
 }
 
+SITE_CODING_ESM_BY_LAND = {
+     "UK": {1: 'LO', 2: 'CA'},
+     "GE": {3: 'MA', 4: 'WI'},
+     "BE": {5: 'LE', 6: 'BI'},
+     "SK": {7: 'BR'},
+     "SK_Female": {7: 'BR'},
+     "SK_Kosice": {8: 'KO'},
+     "SK_Kosice_Female": {8: 'KO'}
+}
+
+
 # SITE_CODE_MAPPING = {
 #     "UK": {0: 1, 1: 2},
 #     "GE": {0: 3, 1: 4},
