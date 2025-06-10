@@ -49,10 +49,10 @@ class DataCleaning:
         self.merge_ids = {}
         self.add_ids = {}
         self.update_ids = {}
-        self.assign_id_to_T0 = {}
-        self.assign_id_to_T1 = {}
-        self.assign_id_to_T2 = {}
-        self.assign_id_to_T3 = {}
+        self.assign_id_to_T0 = set()
+        self.assign_id_to_T1 = set()
+        self.assign_id_to_T2 = set()
+        self.assign_id_to_T3 = set()
 
     '''
        This function (changes_to_apply_when_using_rulebook) is in charge to apply the changes using first "rulebook"
@@ -63,9 +63,13 @@ class DataCleaning:
         self.changes_df.copy()
 
         for _, row in rulebook.iterrows():
-            participant_identifier = row['participant_id']
-            participant_number = row['participant_movi_nr']
-            correct_participant_identifier = row.get('study_ID (MaganaMed)')
+            participant_identifier = row['participant_identifier']
+            participant_number = row['participant_number']
+            correct_participant_identifier = row.get('correct_participant_identifier')
+
+            # participant_identifier = row['participant_id']
+            # participant_number = row['participant_movi_nr']
+            # correct_participant_identifier = row.get('study_ID (MaganaMed)')
 
             action = str(row['action']).strip()
             key = (participant_identifier, participant_number)
@@ -77,15 +81,15 @@ class DataCleaning:
                 self.add_ids[key] = correct_participant_identifier
 
             if action.startswith('use'):    # TODO:Fix merging
-                # continue
-                if "T0" in action:
-                    self.assign_id_to_T0[key].add(correct_participant_identifier)
-                if "T1" in action:
-                    self.assign_id_to_T1[key].add(correct_participant_identifier)
-                if "T2" in action:
-                    self.assign_id_to_T2[key].add(correct_participant_identifier)
-                if "T3" in action:
-                    self.assign_id_to_T3[key].add(correct_participant_identifier)
+                continue
+                # if "T0" in action:
+                #     self.assign_id_to_T0[key].add(correct_participant_identifier)
+                # if "T1" in action:
+                #     self.assign_id_to_T1[key].add(correct_participant_identifier)
+                # if "T2" in action:
+                #     self.assign_id_to_T2[key].add(correct_participant_identifier)
+                # if "T3" in action:
+                #     self.assign_id_to_T3[key].add(correct_participant_identifier)
 
             if action.startswith('update'):
                 self.update_ids[key] = correct_participant_identifier
@@ -99,65 +103,70 @@ class DataCleaning:
                         self.merge_ids[part_number.strip()] = correct_participant_identifier
                         print('extract_participant_number_to_merge', part_number, correct_participant_identifier)
 
-
-    def _apply_changes_from_esm_rulebook(self, current_df, filename):
+    def _apply_changes_from_esm_rulebook(self, current_df, filename, directory_path):
         current_immerse_df = current_df.copy()
-        print('current_immerse_df', current_immerse_df.info())
+        current_immerse_df['correct_participant_id'] = current_immerse_df['participant_id']
 
         # Case 1: Deletion IDs
         if self.delete_ids:
-            print('IDs to delete: ', self.delete_ids)
+            # print('IDs to delete: ', self.delete_ids)
             current_immerse_df = current_immerse_df[~current_immerse_df.apply(
-                lambda row: (row['id'], row['Participant']) in self.delete_ids, axis=1)]
+                lambda row: (str(row['participant_id']), row['Participant'],) in self.delete_ids, axis=1)]
 
         # Case 2: Merging IDs
         if self.merge_ids:
             print("IDs to Merge: ", self.merge_ids)
-            current_immerse_df['id'] = current_immerse_df.apply(
-                lambda row: self.merge_ids.get(row['Participant'], row['id']), axis=1)
+            current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
+                lambda row: self.merge_ids.get(row['Participant'], row['correct_participant_id']), axis=1)
 
         # Case 3: Adding IDS
         if self.add_ids:
-            print("IDs to Add: ", self.add_ids)
-            current_immerse_df['id'] = current_immerse_df.apply(
-                lambda row: self.add_ids.get(row['Participant'], row['id'])
-                if pd.isna(row['id']) else row['id'], axis=1)
+            # print("IDs to Add: ", self.add_ids)
+            current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
+                lambda row: self.add_ids.get(row['Participant'], row['correct_participant_id'])
+                if pd.isna(row['correct_participant_id']) or str(row['correct_participant_id']).strip() == ""
+                else row['correct_participant_id'], axis=1)
 
         # Case 4: Update IDS
         if self.update_ids:
-            print("IDs to update: ", self.update_ids)
-            current_immerse_df['id'] = current_immerse_df.apply(
-            lambda row: self.update_ids.get((row['id'], row['Participant']), row['id']), axis=1)
+            # print("IDs to update: ", self.update_ids)
+            current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
+            lambda row: self.update_ids.get((str(row['participant_id']), row['Participant']), row['correct_participant_id']), axis=1)
 
         # Case 5: Specific IDs according T-files
         if '_T0_' in filename and self.assign_id_to_T0:
-            print("T0 IDs: ", self.assign_id_to_T0)
-            current_immerse_df['id'] = current_immerse_df.apply(
-                lambda row: self.assign_id_to_T0.get((row['id'], row['Participant']), row['id']), axis=1)
+            # print("T0 IDs: ", self.assign_id_to_T0)
+            current_immerse_df['participant_id'] = current_immerse_df.apply(
+                lambda row: self.assign_id_to_T0.get((row['participant_id'], row['Participant']), row['participant_id']), axis=1)
 
         if '_T1_' in filename and self.assign_id_to_T1:
             print("T1 IDs: ", self.assign_id_to_T1)
-            current_immerse_df['id'] = current_immerse_df.apply(
-                lambda row: self.assign_id_to_T1.get((row['id'], row['Participant']), row['id']), axis=1)
+            current_immerse_df['participant_id'] = current_immerse_df.apply(
+                lambda row: self.assign_id_to_T1.get((row['participant_id'], row['Participant']), row['participant_id']), axis=1)
 
         if '_T2_' in filename and self.assign_id_to_T2:
             print("T2 IDs: ", self.assign_id_to_T2)
-            current_immerse_df['id'] = current_immerse_df.apply(
-                lambda row: self.assign_id_to_T2.get((row['id'], row['Participant']), row['id']), axis=1)
+            current_immerse_df['participant_id'] = current_immerse_df.apply(
+                lambda row: self.assign_id_to_T2.get((row['participant_id'], row['Participant']), row['participant_id']), axis=1)
 
         if '_T3_' in filename and self.assign_id_to_T3:
             print("T3 IDs: ", self.assign_id_to_T3)
-            current_immerse_df['id'] = current_immerse_df.apply(
-                lambda row: self.assign_id_to_T3.get((row['id'], row['Participant']), row['id']), axis=1)
+            current_immerse_df['participant_id'] = current_immerse_df.apply(
+                lambda row: self.assign_id_to_T3.get((row['participant_id'], row['Participant']), row['participant_id']), axis=1)
 
-        # current_immerse_df.to_csv()
+        filename = os.path.join(directory_path, f"_{filename}")
+        current_immerse_df.to_excel(filename, index=False)
+        print(f"{filename} exported")
+        # return current_immerse_df
 
     # Changes to apply to ORIGINAL_IMMERSE_SOURCE
     def execute_corrections_to_original_tables(self, original_directory: str, immerse_system):
         # df_issues = self.df.copy()
 
         immerse_clean_dfs = {}
-        files_to_exclude = ["Sensing.xlsx", "codebook.xlsx", "~$IMMERSE_T0_BE.xlsx"]
+        files_to_exclude = ["Sensing.xlsx", "codebook.xlsx", "~$IMMERSE_T0_BE.xlsx",
+                            "Fidelity_BE.xlsx", "Fidelity_c_UK.xlsx", "Fidelity_GE.xlsx", "Fidelity_SK.xlsx",
+                            "Fidelity_UK.xlsx", "IMMERSE_Fidelity_SK_Kosice.xlsx"]
 
         for root, dirs, files in os.walk(original_directory):
             if immerse_system in dirs:
@@ -172,7 +181,7 @@ class DataCleaning:
                                 if 'movisens_esm' in filepath:
                                     print(f"Processing  df from {filename}")
                                     current_df = pd.read_excel(filepath, engine='openpyxl') if filename.endswith(".xlsx") else pd.read_csv(filepath)
-                                    self._apply_changes_from_esm_rulebook(current_df, filename)
+                                    self._apply_changes_from_esm_rulebook(current_df, filename, sub_folder_path)
 
                                 else:
                                     print(f"Another function is required to clean {filename}") # TODO: define another system
