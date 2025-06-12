@@ -80,6 +80,9 @@ class DataCleaning:
             if action.startswith('add'):
                 self.add_ids[key] = correct_participant_identifier
 
+            if action.startswith('skip'):
+                continue
+
             if action.startswith('use'):    # TODO:Fix merging
                 continue
                 # if "T0" in action:
@@ -103,27 +106,30 @@ class DataCleaning:
                         self.merge_ids[part_number.strip()] = correct_participant_identifier
                         print('extract_participant_number_to_merge', part_number, correct_participant_identifier)
 
-    def _apply_changes_from_esm_rulebook(self, current_df, filename, directory_path):
+
+    def _apply_changes_from_esm_rulebook(self, current_df, participant_id_label, participant_num_label, filename):
         current_immerse_df = current_df.copy()
-        current_immerse_df['correct_participant_id'] = current_immerse_df['participant_id']
+        # current_immerse_df[participant_id_label] = current_immerse_df[participant_id_label].fillna(method='ffill')
+        current_immerse_df['correct_participant_id'] = current_immerse_df[participant_id_label]
+
 
         # Case 1: Deletion IDs
         if self.delete_ids:
             # print('IDs to delete: ', self.delete_ids)
             current_immerse_df = current_immerse_df[~current_immerse_df.apply(
-                lambda row: (str(row['participant_id']), row['Participant'],) in self.delete_ids, axis=1)]
+                lambda row: (str(row[participant_id_label]), row[participant_num_label],) in self.delete_ids, axis=1)]
 
         # Case 2: Merging IDs
         if self.merge_ids:
             print("IDs to Merge: ", self.merge_ids)
             current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
-                lambda row: self.merge_ids.get(row['Participant'], row['correct_participant_id']), axis=1)
+                lambda row: self.merge_ids.get(row[participant_num_label], row['correct_participant_id']), axis=1)
 
         # Case 3: Adding IDS
         if self.add_ids:
             # print("IDs to Add: ", self.add_ids)
             current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
-                lambda row: self.add_ids.get(row['Participant'], row['correct_participant_id'])
+                lambda row: self.add_ids.get(row[participant_num_label], row['correct_participant_id'])
                 if pd.isna(row['correct_participant_id']) or str(row['correct_participant_id']).strip() == ""
                 else row['correct_participant_id'], axis=1)
 
@@ -131,33 +137,31 @@ class DataCleaning:
         if self.update_ids:
             # print("IDs to update: ", self.update_ids)
             current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
-            lambda row: self.update_ids.get((str(row['participant_id']), row['Participant']), row['correct_participant_id']), axis=1)
+            lambda row: self.update_ids.get((str(row[participant_id_label]), row[participant_num_label]), row['correct_participant_id']), axis=1)
 
         # Case 5: Specific IDs according T-files
         if '_T0_' in filename and self.assign_id_to_T0:
             # print("T0 IDs: ", self.assign_id_to_T0)
-            current_immerse_df['participant_id'] = current_immerse_df.apply(
-                lambda row: self.assign_id_to_T0.get((row['participant_id'], row['Participant']), row['participant_id']), axis=1)
+            current_immerse_df[participant_id_label] = current_immerse_df.apply(
+                lambda row: self.assign_id_to_T0.get((row[participant_id_label], row[participant_num_label]), row[participant_id_label]), axis=1)
 
         if '_T1_' in filename and self.assign_id_to_T1:
             print("T1 IDs: ", self.assign_id_to_T1)
-            current_immerse_df['participant_id'] = current_immerse_df.apply(
-                lambda row: self.assign_id_to_T1.get((row['participant_id'], row['Participant']), row['participant_id']), axis=1)
+            current_immerse_df[participant_id_label] = current_immerse_df.apply(
+                lambda row: self.assign_id_to_T1.get((row[participant_id_label], row[participant_num_label]), row[participant_id_label]), axis=1)
 
         if '_T2_' in filename and self.assign_id_to_T2:
             print("T2 IDs: ", self.assign_id_to_T2)
-            current_immerse_df['participant_id'] = current_immerse_df.apply(
-                lambda row: self.assign_id_to_T2.get((row['participant_id'], row['Participant']), row['participant_id']), axis=1)
+            current_immerse_df[participant_id_label] = current_immerse_df.apply(
+                lambda row: self.assign_id_to_T2.get((row[participant_id_label], row[participant_num_label]), row[participant_id_label]), axis=1)
 
         if '_T3_' in filename and self.assign_id_to_T3:
             print("T3 IDs: ", self.assign_id_to_T3)
-            current_immerse_df['participant_id'] = current_immerse_df.apply(
-                lambda row: self.assign_id_to_T3.get((row['participant_id'], row['Participant']), row['participant_id']), axis=1)
+            current_immerse_df[participant_id_label] = current_immerse_df.apply(
+                lambda row: self.assign_id_to_T3.get((row[participant_id_label], row[participant_num_label]), row[participant_id_label]), axis=1)
 
-        filename = os.path.join(directory_path, f"_{filename}")
-        current_immerse_df.to_excel(filename, index=False)
-        print(f"{filename} exported")
-        # return current_immerse_df
+        current_immerse_df[participant_id_label] = current_immerse_df.pop("correct_participant_id")
+        return current_immerse_df
 
     # Changes to apply to ORIGINAL_IMMERSE_SOURCE
     def execute_corrections_to_original_tables(self, original_directory: str, immerse_system):
@@ -175,16 +179,16 @@ class DataCleaning:
                     for filename in files:
                         if filename in files_to_exclude:  # These files use another labeling
                             continue
-                        if filename.endswith(".xlsx") or filename.endswith(".csv"):
+                        if filename.endswith(".xlsx"):
                             filepath = os.path.join(folder, filename)
                             try:
-                                if 'movisens_esm' in filepath:
+                                if 'movisens_sensing' == immerse_system and 'movisens_sensing' in filepath:
                                     print(f"Processing  df from {filename}")
                                     current_df = pd.read_excel(filepath, engine='openpyxl') if filename.endswith(".xlsx") else pd.read_csv(filepath)
-                                    self._apply_changes_from_esm_rulebook(current_df, filename, sub_folder_path)
-
-                                else:
-                                    print(f"Another function is required to clean {filename}") # TODO: define another system
+                                    clean_current_df = self._apply_changes_from_esm_rulebook(current_df, "study_id", "Participant", filename)
+                                    filename = os.path.join(sub_folder_path, f"_{filename}")
+                                    clean_current_df.to_excel(filename, index=False)
+                                    print(f"Cleaned {filename} successfully exported")
 
                             except Exception as e:
                                 print(f"Unexpected error in  {filename}", e)
@@ -250,14 +254,9 @@ class DataCleaning:
         df_fixes['Action'] = df_fixes.apply(  # TODO: break down
             lambda row: (
                 'switch' if row['issue_type'] == 'invalid_id' and pd.notna(row['correct_participant_identifier'])
-                            and row['correct_participant_identifier'] != '' else 'delete' if row[
-                                                                                                 'issue_type'] == 'invalid_id' and (
-                                                                                                     pd.isna(row[
-                                                                                                                 'correct_participant_identifier']) or
-                                                                                                     row[
-                                                                                                         'correct_participant_identifier'] == '') else
-                row['Action']), axis=1
-        )
+                            and row['correct_participant_identifier'] != '' else 'delete'
+                if row['issue_type'] == 'invalid_id' and (pd.isna(row['correct_participant_identifier'])
+                or row['correct_participant_identifier'] == '') else row['Action']), axis=1)
 
         df_fixes.to_csv(os.path.join(fixes_path, f'second_fixes_{filename}'), index=False)
         return df_fixes
