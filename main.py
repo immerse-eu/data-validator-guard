@@ -1,9 +1,9 @@
 import os
-import sqlite3
 import pandas as pd
 
 from cleaning.general_id_cleaning import DataCleaning, create_merged_esm_ids_rulebook
 from config.config_loader import load_config_file
+from database.db import connect_and_fetch_table
 from validation.general_validation import DataValidator
 from validation.maganamed_validation import (
     VALID_SITE_CODES_AND_CENTER_NAMES, MaganamedValidation, import_custom_csr_df_with_language_selection)
@@ -20,20 +20,10 @@ ISSUES_PATH = load_config_file('reports', 'issues')
 CHANGES_PATH = load_config_file('reports', 'changes')
 FIXES_PATH = load_config_file('reports', 'fixes')
 
-ID_CONTROL_PATH = load_config_file('auxiliarFiles', 'ids_reference')
-ID_SAMPLE_PATH = load_config_file('auxiliarFiles', 'ids_to_verify')
-ID_ESM_RULEBOOK_PATH = load_config_file('auxiliarFiles', 'ids_reference_esm')
-NEW_SOURCE_PATH = load_config_file('updated_source', 'immerse_clean')
-
-
-def connect_and_fetch_table(table_name):
-    sql_connection = sqlite3.connect(NEW_DB_PATH)
-    try:
-        query = f"SELECT * FROM `{table_name}`"
-        df = pd.read_sql_query(query, sql_connection)
-    finally:
-        sql_connection.close()
-    return df
+IDS_REFERENCE_PATH = load_config_file('auxiliarFiles', 'ids_reference')
+IDS_TO_VERIFY_PATH = load_config_file('auxiliarFiles', 'ids_to_verify')
+IDS_ESM_RULEBOOK_PATH = load_config_file('auxiliarFiles', 'ids_reference_esm')
+ID_CLEAN_IMMERSE_PATH = load_config_file('updated_source', 'immerse_clean')
 
 
 def run_general_validation(table):
@@ -47,7 +37,7 @@ def run_general_validation(table):
 
 
 # Rule 1: SITE and CENTER_NAME must fit according DVM-V7
-def run_rule_one(table):
+def run_rule_one(table, table_name):
     print(f"\n\033[95m Validating for SITE and CENTER_NAME:\033[0m\n")
     rules_magana_validation = MaganamedValidation(table)
     rules_magana_validation.validate_special_duplication_types(column="participant_identifier")
@@ -56,6 +46,8 @@ def run_rule_one(table):
         center_name_column="center_name",
         study_id_column="participant_identifier",
     )
+    is_validation_approved = rules_magana_validation.passed_validation(table_name)
+    return is_validation_approved
 
 
 def run_auxiliary_rule_two(table):
@@ -81,11 +73,15 @@ def run_rule_two(table, filename):
     )
 
 
+# Combined rule 3 and 5 since the validation applies for the same file: SAQ
 # Rule 3. Completion of questionnaires at least 80 %.
-def run_rule_three(table, table_name):
-    print(f"\n\033[95m Validating {table_name} completion:\033[0m\n")
+# Rule 5. Assesses real Visit TIME since user start - finished test. Compare with Baseline, T1, T2, and T3 values
+def run_rule_three_and_five(table, table_name):
     rules_magana_validation = MaganamedValidation(table)
-    rules_magana_validation.validate_completion_questionaries(table_name)
+    print(f"\n\033[95m Validating {table_name} completion min 80% :\033[0m\n")
+    updated_table = rules_magana_validation.validate_completion_questionaries(table_name)
+    print(f"\n\033[95m Validating '{table_name}' correct Time selection (T1-T3):\033[0m\n")
+    rules_magana_validation.validate_periods(table_name)
 
 
 # Rule 4. Correct diagnosis selection.
@@ -93,13 +89,6 @@ def run_rule_four(table, table_name):
     print(f"\n\033[95m Validating from '{table_name}' correct diagnosis selection:\033[0m\n")
     rules_magana_validation = MaganamedValidation(table)
     rules_magana_validation.validate_primary_diagnosis(table_name)
-
-
-# Rule 5. Calculate real TIME since user start - finished test. Compare with T1, T2, T3
-def run_rule_five(table, table_name):
-    print(f"\n\033[95m Validating '{table_name}' correct Time selection (T1-T3):\033[0m\n")
-    rules_magana_validation = MaganamedValidation(table)
-    rules_magana_validation.validate_periods(table_name)
 
 
 # Rule 6. End comparison
@@ -122,9 +111,14 @@ def general_validation_ids(df_control, esm_rulebook, df_to_validate, file):
     general_validation.compare_ids_with_redcap_ids(df_control, id_column=0)
     general_validation.check_typos_in_ids(id_column=0)
     df_report = general_validation.report(ISSUES_PATH, file)
+
     # Cleaning process
     general_cleaning = DataCleaning(df_report)
-    general_cleaning.ids_structure_correction(esm_rulebook, CHANGES_PATH, NEW_SOURCE_PATH, file)
+    if "movisens_esm" in file:
+        general_cleaning.prepare_ids_correction_from_esm(esm_rulebook, CHANGES_PATH, file)
+        general_cleaning.changes_to_apply_when_using_rulebook(esm_rulebook)
+        general_cleaning.execute_corrections_to_original_tables(ID_CLEAN_IMMERSE_PATH,
+                                                                'movisens_sensing')  # TODO: Select a sub_folder: ['dmmh', 'maganamed', 'movisens_esm', 'movisens_sensing']
 
 
 # Alternative function to run ID validation from CSV/EXCEL files instead of SQL tables
@@ -136,8 +130,8 @@ def run_id_validation_from_df(reference_all_ids_directory, esm_rulebook, test_di
     if os.path.exists(esm_filepath):
         esm_rulebook_df = pd.read_excel(esm_filepath)
     # else: # TODO: Uncomment if this rulebook needs to be created.
-        # get_ids_reference_esm()
-        # esm_rulebook_df = pd.read_excel(esm_filepath)
+    #   get_ids_reference_esm()
+    #   esm_rulebook_df = pd.read_excel(esm_filepath)
 
         for file in os.listdir(test_directory):
             if file.startswith(filename):
@@ -146,24 +140,34 @@ def run_id_validation_from_df(reference_all_ids_directory, esm_rulebook, test_di
                     print(f"\n\033[34mFile to validate: '{file}' \033[0m\n")
                     general_validation_ids(df_control, esm_rulebook_df, csv_df, file)
 
-                elif file.endswith(".xlsx"):
-                    excel_df = pd.read_excel(os.path.join(test_directory, file))  # File(s) to validate
-                    print(f"\n\033[34mFile to validate:'{file}' \033[0m\n")
-                    general_validation_ids(df_control, esm_rulebook_df, excel_df, file)
+                # elif file.endswith(".xlsx"):
+                #     excel_df = pd.read_excel(os.path.join(test_directory, file))  # File(s) to validate
+                #     print(f"\n\033[34mFile to validate:'{file}' \033[0m\n")
+                #     general_validation_ids(df_control, esm_rulebook_df, excel_df, file)
     else:
         print(f"\n\033[34mFilepath not found!\033[0m\n")
 
 
-def main():
+# In the new processed data from GH, IDs from Clinicians and Admin are combined in some files.
+def filter_only_participants(df, id_column):
+    filtered_df = df[
+        ~df[id_column].str.contains(r'[_-]C[_-]', case=False, na=False) &
+        ~df[id_column].str.contains(r'[_-]A[_-]', case=False, na=False)
+        ]
+    return filtered_df
 
+
+def main():
     # -- Rule 0: ID validation
-    run_id_validation_from_df(ID_CONTROL_PATH, ID_ESM_RULEBOOK_PATH, ID_SAMPLE_PATH, 'extracted')
+    run_id_validation_from_df(IDS_REFERENCE_PATH, IDS_ESM_RULEBOOK_PATH, IDS_TO_VERIFY_PATH, 'extracted')
 
     # -- Rule 1: Apply validation for 'Kind-of-participant'.
-    read_kind_participants_df = connect_and_fetch_table("Kind-of-participant")
-    is_validation_approved = run_general_validation(read_kind_participants_df)
+    table_name = "Kind-of-participant"
+    read_kind_participants_df = connect_and_fetch_table(table_name)
+    filter_read_kind_participants_df = filter_only_participants(read_kind_participants_df, "participant_identifier")
+    is_validation_approved = run_general_validation(filter_read_kind_participants_df)
     if is_validation_approved:
-        run_rule_one(read_kind_participants_df)
+        run_rule_one(read_kind_participants_df, table_name)
 
     # -- Rule 2: CSRI Language control and questionaries completion
     # Part 1.
@@ -189,29 +193,25 @@ def main():
             else:
                 print(f"Participant from {csri_table} has no invalid language")
 
-    # -- Run Rule 3: Questionaries completion
+    # -- Run Rule 3 and 5
     table_name = 'Service-Attachement-Questionnaire-(SAQ)'
     read_saq_df = connect_and_fetch_table(table_name)
-    run_rule_three(read_saq_df, table_name)
+    run_rule_three_and_five(read_saq_df, table_name)
 
     # -- Run Rule 4: Correct diagnosis selection
     table_name = 'Diagnosis'
     read_diagnosis_df = connect_and_fetch_table(table_name)
     run_rule_four(read_diagnosis_df, table_name)
 
-    # -- Run Rule 5: "Visit time points"
-    table_name = 'Service-Attachement-Questionnaire-(SAQ)'
-    read_saq_df = connect_and_fetch_table(table_name)
-    run_rule_five(read_saq_df, table_name)
-
     # -- Run Rule 6: Completed visits
     read_end_df = connect_and_fetch_table('End')
+    filter_end_df = filter_only_participants(read_end_df, 'participant_identifier')
     read_saq_df = connect_and_fetch_table('Service-Attachement-Questionnaire-(SAQ)')
     new_saq_df = run_auxiliary_rule_six(read_saq_df)
-    run_rule_six(read_end_df, new_saq_df)
+    run_rule_six(filter_end_df, new_saq_df)
 
     # -- EXTRA ACTION: SEARCH
-    input_value = ['Screening']        # TODO: Change these values for real IDs or value to search.
+    input_value = ['Screening']  # TODO: Change these values for real IDs or value to search.
     execute_search(input_value)
 
     # Control fixed, generated file from Rule 1.
