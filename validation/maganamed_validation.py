@@ -53,10 +53,9 @@ new_value_language_abbrev = list(VALID_LANGUAGE_SELECTION.values())
 VALID_CENTER_AND_ACRONYM = {k:new_value_language_abbrev[i // 2] for i, k in enumerate(new_key_center_code)}
 
 output_excel_path = load_config_file('reports', 'issues')
-output_csv_path = "validation_issues.csv" #TODO: homologate to common "issues" folder.
+output_csv_path = "validation_issues.csv"  # TODO: homologate to common "issues" folder.
 
 def import_custom_csr_df_with_language_selection():
-
     with open("./config/config.yaml", "r", encoding="utf-8") as path:
         config = yaml.safe_load(path)
     csri = config['auxiliarFiles']['csri']
@@ -81,6 +80,16 @@ class MaganamedValidation:
         self.magana_df = df
         self.magana_issues = []
 
+    def export_managamed_issues(self, table_name):
+
+        excel_filename = f'{table_name}_all_validation_issues.xlsx'
+        filepath = os.path.join(output_excel_path, excel_filename)
+        export_issues = pd.concat(self.magana_issues, ignore_index=True)
+        export_issues = export_issues.groupby(["participant_identifier", "SiteCode", "center_name"],
+                                              as_index=False).first()
+        export_issues.to_excel(filepath, index=False)
+        print(f"\n All issues found in '{table_name}', have been as '{excel_filename}' exported.")
+
     def validate_site_and_center_name_id(self, site_column, center_name_column, study_id_column):
 
         # Normalization process
@@ -96,7 +105,7 @@ class MaganamedValidation:
         filter_id_issues = results[results.id_validation_result == 'ID-mismatch']
 
         if not filter_id_issues.empty:
-            print(f"\n❌ {len(filter_id_issues)} | Issues have been found in participants IDs:\n {filter_id_issues}")
+            print(f"\n❌ {len(filter_id_issues)} | Issues have been found in participants IDs.")
             self.magana_issues.append(filter_id_issues)
         else:
             print("\n ✔ | Validation of IDS passed: No issues were detected in participant IDs! ")
@@ -111,21 +120,12 @@ class MaganamedValidation:
             [study_id_column, site_column, center_name_column, 'abbreviation_center_name', 'site_validation_result']]
         filter_site_issues = site_issues[site_issues['site_validation_result'] == 'Site-mismatch']
 
-
         if not filter_site_issues.empty:
-            print(f"\n❌ {len(filter_site_issues)} | Issues have been found in 'Site' column :\n{filter_site_issues}")
+            print(f"\n❌ {len(filter_site_issues)} | Issues have been found in 'Site' column.")
             self.magana_issues.append(filter_site_issues)
         else:
             print("\n ✔ | Validation of 'Site' passed: No issues were detected in 'Site' columns!")
 
-        if self.magana_issues:
-            all_issues_df = pd.concat(self.magana_issues, ignore_index=True)
-            all_issues_df = all_issues_df.groupby([study_id_column, site_column, center_name_column],
-                                                  as_index=False).first()
-            all_issues_df.to_csv(output_csv_path, sep=';', index=False)
-            print(f"\n Issues exported to '{output_csv_path}' file.")
-        else:
-            print("\n ✔  | All validations were successfully passed!!")
 
     def validate_special_duplication_types(self, column):
         issues = []
@@ -141,7 +141,8 @@ class MaganamedValidation:
         if filter_issues.empty:
             print(f"\n ✔ | Validation of special duplications passed: No duplications were found in column '{column}'.")
         else:
-            print(f"\n❌ | Issues found in '{column}' column :\n'{filter_issues}")
+            print(f"\n❌ | {len({filter_issues})} Issues found in '{column}' column ")
+            # print(f"\n❌ | Issues found in '{column}' column :\n'{filter_issues}")
             issues.append(filter_issues)
             return issues
 
@@ -200,7 +201,7 @@ class MaganamedValidation:
 
         print(f" Number of question columns: {len(column_questionaries)}")
         print(f" Responses with ≥80% completion: {len(filter_by_80_percent)}")
-        print(self.magana_df[['participant_identifier', 'visit_name','count_responses', 'percentage_qre_completed']])
+        print(self.magana_df[['participant_identifier', 'visit_name', 'count_responses', 'percentage_qre_completed']])
 
         # export_table(self.magana_df, table_name)
         return self.magana_df
@@ -252,7 +253,7 @@ class MaganamedValidation:
             else 'Mismatch', axis=1)
 
         print(merged_magana_df[['participant_identifier', 'end_01', 'visit_name_y', 'percentage_qre_completed', 'is_a_match']].head(10))
-        export_table(merged_magana_df,table_name='END-merged_with-saq_magana_df')
+        export_table(merged_magana_df, table_name='END-merged_with-saq_magana_df')
 
     def validate_periods(self, table_name):
         self.magana_df['clean_visit_name'] = self.magana_df['visit_name'].str.strip().str.extract(r'^(\w+)', expand=False)
@@ -280,5 +281,9 @@ class MaganamedValidation:
         print(self.magana_df[['duration_study_in_days', 'estimated_days', 'is_a_valid_period']].head(10))
         export_table(self.magana_df, f'{table_name}_period')
 
-    def passed_validation(self):
-        return len(self.magana_issues) == 0
+    def passed_validation(self, table_name):
+        if len(self.magana_issues) == 0:
+            print("\n ✔  | All validations were successfully passed!!")
+            return True
+        else:
+            return self.export_managamed_issues(table_name)
