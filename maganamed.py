@@ -1,9 +1,12 @@
+import pandas as pd
+
 from config.config_loader import load_config_file
 from database.db import connect_and_fetch_table
 from validation.general_validation import DataValidator
 from validation.maganamed_validation import (VALID_SITE_CODES_AND_CENTER_NAMES, MaganamedValidation,
                                              import_custom_csr_df_with_language_selection)
 from utils.create_auxiliar_files import filter_only_participants
+from cleaning.general_id_cleaning import DataCleaning
 
 CSRI_list = ["CSRI", "CSRI_GE", "CSRI_BE", "CSRI_SK"]
 valid_center_names = VALID_SITE_CODES_AND_CENTER_NAMES.values()
@@ -36,9 +39,10 @@ def run_rule_one(table, table_name):
     return is_validation_approved
 
 
-def run_auxiliary_rule_two(table):
-    print(f"\n\033[95mValidating extended Language selection:\033[0m\n")
-    # Part 1.
+# Auxiliar function for Rule 8.
+def run_auxiliary_rule_eight(table):
+    print(f"\n\033[95mValidating auxiliar file for Language selection:\033[0m\n")
+
     rules_magana_validation = MaganamedValidation(table)
     participant_language_result = rules_magana_validation.validate_auxiliar_table(
         study_id_column="participant_identifier",
@@ -47,11 +51,10 @@ def run_auxiliary_rule_two(table):
     return participant_language_result
 
 
-# Rule 2: LANGUAGE selection must fit according FILENAME according DVM-V7
-def run_rule_two(table, filename):
+# Rule 8:  For CSRI questionnaires, LANGUAGE selection must fit according to FILENAME according DVM-V7.
+def run_rule_eight(table, filename):
     print(f"\n\033[95m Validating Language selection per tables:\033[0m\n")
 
-    # Part 2.
     rules_magana_validation = MaganamedValidation(table)
     rules_magana_validation.validate_language_selection(
         table_name=filename,
@@ -59,10 +62,10 @@ def run_rule_two(table, filename):
     )
 
 
-# Combined rule 3 and 5 since the validation applies for the same file: SAQ
-# Rule 3. Completion of questionnaires at least 80 %.
-# Rule 5. Assesses real Visit TIME since user start - finished test. Compare with Baseline, T1, T2, and T3 values
-def run_rule_three_and_five(table, table_name):
+# Combined rule 9 and 12 since the validation applies for the same file: SAQ
+# Rule 9. Completion of questionnaires at least 80 %.
+# Rule 12. Assesses real Visit TIME since user start - finished test. Compare with Baseline, T1, T2, and T3 values
+def run_rule_nine_and_twelve(table, table_name):
     rules_magana_validation = MaganamedValidation(table)
     print(f"\n\033[95m Validating {table_name} completion min 80% :\033[0m\n")
     updated_table = rules_magana_validation.validate_completion_questionaries(table_name)
@@ -70,39 +73,49 @@ def run_rule_three_and_five(table, table_name):
     rules_magana_validation.validate_periods(table_name)
 
 
-# Rule 4. Correct diagnosis selection.
-def run_rule_four(table, table_name):
+# Rule 11. Correct diagnosis selection.
+def run_rule_eleven(table, table_name):
     print(f"\n\033[95m Validating from '{table_name}' correct diagnosis selection:\033[0m\n")
     rules_magana_validation = MaganamedValidation(table)
     rules_magana_validation.validate_primary_diagnosis(table_name)
 
 
-# Rule 6. End comparison
-def run_rule_six(table, table_name):
+# Rule 13. End comparison
+def run_rule_thirteen(table, table_name):
     rules_magana_validation = MaganamedValidation(table)
     rules_magana_validation.validate_completed_visits(table_name)
 
 
-def run_auxiliary_rule_six(table):
+# Auxiliar rule No. 13
+def run_auxiliary_rule_thirteen(table):
     rules_magana_validation = MaganamedValidation(table)
     return rules_magana_validation.retrieve_saq_data()
 
 
-def run_validation_maganamed():
+def execute_corrections_maganamed(original_source_path, clean_source_path, rulebook):
+    rulebook_df = pd.read_csv(rulebook)
+    # First phase ID_cleaning:
+    maganamed_cleaning = DataCleaning(rulebook_df)
+    maganamed_cleaning.changes_to_apply_when_using_rulebook(rulebook_df, 'maganamed')  # DONE :D
+    maganamed_cleaning.execute_corrections_to_original_tables(clean_source_path, "maganamed")
 
+    # Second phase validation_issues:
+
+
+def run_validation_maganamed():
     # -- Rule 1: Apply validation for 'Kind-of-participant'.
     table_name = "Kind-of-participant"
     read_kind_participants_df = connect_and_fetch_table(table_name)
     filter_read_kind_participants_df = filter_only_participants(read_kind_participants_df, "participant_identifier")
     is_validation_approved = run_general_validation(filter_read_kind_participants_df)
     if is_validation_approved:
-        run_rule_one(read_kind_participants_df, table_name)
+        run_rule_one(filter_read_kind_participants_df, table_name)
 
-    # -- Rule 2: CSRI Language control and questionaries completion
+    # -- Rule 8: CSRI Language control and questionnaires completion
     # Part 1.
     auxiliar_csri_df = import_custom_csr_df_with_language_selection()
     run_general_validation(auxiliar_csri_df)
-    participant_language_result = run_auxiliary_rule_two(auxiliar_csri_df)
+    participant_language_result = run_auxiliary_rule_eight(auxiliar_csri_df)
 
     # Part 2.
     for csri_table in CSRI_list:
@@ -113,7 +126,7 @@ def run_validation_maganamed():
 
         if "_" in csri_table:
             table_abbrev = csri_table.split('_')[1]
-            run_rule_two(read_csri_df, table_abbrev)
+            run_rule_eight(read_csri_df, table_abbrev)
         else:
             sample = list(read_csri_df['participant_identifier'])
             control = list(participant_language_result['participant_identifier'])
@@ -122,22 +135,19 @@ def run_validation_maganamed():
             else:
                 print(f"Participant from {csri_table} has no invalid language")
 
-    # -- Run Rule 3 and 5
+    # -- Run Rule 9 and 12
     table_name = 'Service-Attachement-Questionnaire-(SAQ)'
     read_saq_df = connect_and_fetch_table(table_name)
-    run_rule_three_and_five(read_saq_df, table_name)
+    run_rule_nine_and_twelve(read_saq_df, table_name)
 
-    # -- Run Rule 4: Correct diagnosis selection
+    # -- Run Rule 11: Correct diagnosis selection
     table_name = 'Diagnosis'
     read_diagnosis_df = connect_and_fetch_table(table_name)
-    run_rule_four(read_diagnosis_df, table_name)
+    run_rule_eleven(read_diagnosis_df, table_name)
 
-    # -- Run Rule 6: Completed visits
+    # -- Run Rule 13: Completed visits
     read_end_df = connect_and_fetch_table('End')
     filter_end_df = filter_only_participants(read_end_df, 'participant_identifier')
     read_saq_df = connect_and_fetch_table('Service-Attachement-Questionnaire-(SAQ)')
-    new_saq_df = run_auxiliary_rule_six(read_saq_df)
-    run_rule_six(filter_end_df, new_saq_df)
-
-
-run_validation_maganamed()
+    new_saq_df = run_auxiliary_rule_thirteen(read_saq_df)
+    run_rule_thirteen(filter_end_df, new_saq_df)
