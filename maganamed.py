@@ -99,8 +99,6 @@ def execute_corrections_maganamed(original_source_path, clean_source_path, ruleb
     maganamed_cleaning.changes_to_apply_when_using_rulebook(rulebook_df, 'maganamed')  # DONE :D
     maganamed_cleaning.execute_corrections_to_original_tables(clean_source_path, "maganamed")
 
-    # Second phase validation_issues:
-
 
 def run_validation_maganamed():
     # -- Rule 1: Apply validation for 'Kind-of-participant'.
