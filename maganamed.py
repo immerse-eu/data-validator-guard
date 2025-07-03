@@ -92,9 +92,8 @@ def run_auxiliary_rule_thirteen(table):
     return rules_magana_validation.retrieve_saq_data()
 
 
-def execute_corrections_maganamed(original_source_path, clean_source_path, rulebook):
+def execute_id_corrections_maganamed(clean_source_path, rulebook):
     rulebook_df = pd.read_csv(rulebook)
-    # First phase ID_cleaning:
     maganamed_cleaning = DataCleaning(rulebook_df)
     maganamed_cleaning.changes_to_apply_when_using_rulebook(rulebook_df, 'maganamed')  # DONE :D
     maganamed_cleaning.execute_corrections_to_original_tables(clean_source_path, "maganamed")
