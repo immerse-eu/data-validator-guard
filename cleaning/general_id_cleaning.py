@@ -20,7 +20,7 @@ def create_merged_esm_ids_rulebook():
     for file in os.listdir(VALID_ESM_IDS_PATH):
         print(f"Processing file {file}")
 
-        if file.endswith(".xlsx") and not '~' in file:
+        if file.endswith("esm_rulebook.xlsx") and not '~' in file:
             df = pd.read_excel(os.path.join(VALID_ESM_IDS_PATH, file))
             df_filter = df[['participant_id', 'participant_movi_nr', 'SiteCode', 'study_ID (MaganaMed)']]
             df_filter = df_filter[df_filter['participant_id'] != "example"]
@@ -55,35 +55,41 @@ class DataCleaning:
         self.assign_id_to_T3 = set()
 
     '''
-       This function (changes_to_apply_when_using_rulebook) is in charge to apply the changes using first "rulebook"
-       since "changes_to_apply_XX" only contain existing IDS with detected issues and not the "NEW" ids to add.
+       This function (changes_to_apply_when_using_rulebook) applies changes in IDS using a "rulebook" to the existing
+       IDS.
     '''
-    def changes_to_apply_when_using_rulebook(self, rulebook):
+    def changes_to_apply_when_using_rulebook(self, rulebook, system):
 
         self.changes_df.copy()
 
         for _, row in rulebook.iterrows():
             participant_identifier = row['participant_identifier']
-            participant_number = row['participant_number']
             correct_participant_identifier = row.get('correct_participant_identifier')
-
-            # participant_identifier = row['participant_id']
-            # participant_number = row['participant_movi_nr']
-            # correct_participant_identifier = row.get('study_ID (MaganaMed)')
-
             action = str(row['action']).strip()
-            key = (participant_identifier, participant_number)
 
-            if action == 'delete':
+            if "esm" in system:
+                # participant_identifier = row['participant_id']
+                # participant_number = row['participant_movi_nr']
+                # correct_participant_identifier = row.get('study_ID (MaganaMed)')
+
+                participant_number = row['participant_number']
+                key = (participant_identifier, participant_number)
+
+            if "maganamed" in system:
+                key = participant_identifier
+            else:
+                key = None
+
+            if action == 'delete' and key is not None:
                 self.delete_ids.add(key)
 
-            if action.startswith('add'):
+            if action.startswith('add') and key is not None:
                 self.add_ids[key] = correct_participant_identifier
 
-            if action.startswith('skip'):
+            if action.startswith('skip') and key is not None:
                 continue
 
-            if action.startswith('use'):    # TODO:Fix merging
+            if action.startswith('use') and key is not None:    # TODO:Fix merging
                 continue
                 # if "T0" in action:
                 #     self.assign_id_to_T0[key].add(correct_participant_identifier)
@@ -94,10 +100,10 @@ class DataCleaning:
                 # if "T3" in action:
                 #     self.assign_id_to_T3[key].add(correct_participant_identifier)
 
-            if action.startswith('update'):
+            if action.startswith('update') and key is not None:
                 self.update_ids[key] = correct_participant_identifier
 
-            if action.startswith('merge'):  # TODO: Check correctness of merging
+            if action.startswith('merge') and key is not None:  # TODO: Check correctness of merging
                 # continue
                 extract_participant_number_to_merge = action.split("merge")[1].strip()
                 if "-" in extract_participant_number_to_merge:
@@ -106,18 +112,23 @@ class DataCleaning:
                         self.merge_ids[part_number.strip()] = correct_participant_identifier
                         print('extract_participant_number_to_merge', part_number, correct_participant_identifier)
 
+        print("to delete:", self.delete_ids, "to update: ", self.update_ids)
 
-    def _apply_changes_from_esm_rulebook(self, current_df, participant_id_label, participant_num_label, filename):
+
+    def _apply_changes_from_rulebook(self, current_df, participant_id_label, participant_num_label, filename, system):
         current_immerse_df = current_df.copy()
         # current_immerse_df[participant_id_label] = current_immerse_df[participant_id_label].fillna(method='ffill')
         current_immerse_df['correct_participant_id'] = current_immerse_df[participant_id_label]
 
-
         # Case 1: Deletion IDs
         if self.delete_ids:
             # print('IDs to delete: ', self.delete_ids)
+            if not "maganamed" in system:
+                current_immerse_df = current_immerse_df[~current_immerse_df.apply(
+                lambda row: (str(row[participant_id_label]), row[participant_num_label]) in self.delete_ids, axis=1)]
+
             current_immerse_df = current_immerse_df[~current_immerse_df.apply(
-                lambda row: (str(row[participant_id_label]), row[participant_num_label],) in self.delete_ids, axis=1)]
+                lambda row: (str(row[participant_id_label])) in self.delete_ids, axis=1)]
 
         # Case 2: Merging IDs
         if self.merge_ids:
@@ -135,9 +146,13 @@ class DataCleaning:
 
         # Case 4: Update IDS
         if self.update_ids:
-            # print("IDs to update: ", self.update_ids)
+            if not "maganamed" in system:
+                # print("IDs to update: ", self.update_ids)
+                current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
+                lambda row: self.update_ids.get((str(row[participant_id_label]), row[participant_num_label]), row['correct_participant_id']), axis=1)
+
             current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
-            lambda row: self.update_ids.get((str(row[participant_id_label]), row[participant_num_label]), row['correct_participant_id']), axis=1)
+                lambda row: self.update_ids.get((str(row[participant_id_label])), row['correct_participant_id']), axis=1)
 
         # Case 5: Specific IDs according T-files
         if '_T0_' in filename and self.assign_id_to_T0:
@@ -168,26 +183,41 @@ class DataCleaning:
         # df_issues = self.df.copy()
 
         immerse_clean_dfs = {}
+        # files that have a different structure or do not have participants' IDs
         files_to_exclude = ["Sensing.xlsx", "codebook.xlsx", "~$IMMERSE_T0_BE.xlsx",
                             "Fidelity_BE.xlsx", "Fidelity_c_UK.xlsx", "Fidelity_GE.xlsx", "Fidelity_SK.xlsx",
-                            "Fidelity_UK.xlsx", "IMMERSE_Fidelity_SK_Kosice.xlsx"]
+                            "Fidelity_UK.xlsx", "IMMERSE_Fidelity_SK_Kosice.xlsx", "Service-characteristics-(Teamleads).csv",
+                            "Service-characteristics.csv", "ORCA.csv"]
+
+        # files_to_focus =  "Kind-of-participant.csv"
 
         for root, dirs, files in os.walk(original_directory):
             if immerse_system in dirs:
                 sub_folder_path = os.path.join(root, immerse_system)
+                print("subfolder path", sub_folder_path)
                 for folder, _, files in os.walk(sub_folder_path):
                     for filename in files:
                         if filename in files_to_exclude:  # These files use another labeling
                             continue
-                        if filename.endswith(".xlsx"):
+                        if filename.endswith(".xlsx") or filename.endswith(".csv"):
                             filepath = os.path.join(folder, filename)
                             try:
                                 if 'movisens_sensing' == immerse_system and 'movisens_sensing' in filepath:
                                     print(f"Processing  df from {filename}")
                                     current_df = pd.read_excel(filepath, engine='openpyxl') if filename.endswith(".xlsx") else pd.read_csv(filepath)
-                                    clean_current_df = self._apply_changes_from_esm_rulebook(current_df, "study_id", "Participant", filename)
-                                    filename = os.path.join(sub_folder_path, f"_{filename}")
-                                    clean_current_df.to_excel(filename, index=False)
+                                    clean_current_df = self._apply_changes_from_rulebook(current_df, "study_id", "Participant", filename, immerse_system)
+                                    filepath = os.path.join(sub_folder_path, f"_{filename}")
+                                    clean_current_df.to_excel(filepath, index=False)
+                                    print(f"Cleaned {filename} successfully exported")
+
+                                if 'maganamed' == immerse_system and 'maganamed' in filepath:
+                                    # print(f"Processing  df from {filename}")
+                                    current_df = pd.read_excel(filepath, engine='openpyxl') if filename.endswith(".xlsx") else pd.read_csv(filepath, sep=";")
+                                    # current_df.to_csv(filepath, sep=";", index=False)
+                                    # print(current_df.info())
+                                    clean_current_df = self._apply_changes_from_rulebook(current_df, "participant_identifier", None, filename, immerse_system)
+                                    filepath = os.path.join(sub_folder_path, f"{filename}")
+                                    clean_current_df.to_csv(filepath, sep=";", index=False)
                                     print(f"Cleaned {filename} successfully exported")
 
                             except Exception as e:
