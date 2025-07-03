@@ -21,7 +21,8 @@ Prior to validating the set of rules, a validation for IDs only is carried out t
 The script generates a rulebook per system in IMMERSE, however manual changes are required to do! To apply these changes, 
 check the Master ID files. 
 
-The following script carries several tasks after data has been processed in previous scripts IMMERSE0 to IMMERSE1 from this Projects' repository: 
+## 3. Data processing
+The following script carries several tasks after data has been already processed in previous scripts IMMERSE0 to IMMERSE1 from this Projects' repository: 
 
 - immerse0_checking_each_id_list
 - immerse1_preprocessing_dmmh
@@ -31,3 +32,7 @@ The following script carries several tasks after data has been processed in prev
 - immerse1_preprocessing_redcap_idLists
 - immerse1_preprocessing_redcap_idLists
 - sensing_location_metadata_anonymize
+
+### 3.1 ID Control 
+### 3.2 Rules Validation 
+### 3.3 Data Cleaning 
