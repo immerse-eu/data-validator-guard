@@ -33,8 +33,7 @@ def create_merged_esm_ids_rulebook():
             "update" if str(x).strip() and len(str(x).strip()) >= 10
             else "check manually"))
     filter_all_ids.to_excel(os.path.join(ALL_IDS_ESM_REFERENCE_PATH, "new_merged_esm_ids_rulebook.xlsx"), index=False)
-    print(f"Excel file created in directory: {ALL_IDS_ESM_REFERENCE_PATH} ")
-    return filter_all_ids
+    print(f"ESM rulebook created in: {ALL_IDS_ESM_REFERENCE_PATH}")
 
 
 def get_columns_from_id_reference():
@@ -74,14 +73,3 @@ def add_site_codes_to_rulebook():
     filepath = os.path.join(path, file_name)
     merged_df.to_csv(filepath, sep=';', index=False)
     print("Successfully saved")
-
-
-def rulebook():
-    # Create ESM rulebook. TODO: Uncomment when necessary. Manual changes are required to complete an ESM rulebook!
-    # create_merged_esm_ids_rulebook()
-
-    add_site_codes_to_rulebook()
-
-
-rulebook()
-

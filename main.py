@@ -1,11 +1,12 @@
 import os
 import pandas as pd
 
-from cleaning.general_id_cleaning import DataCleaning, create_merged_esm_ids_rulebook
+from cleaning.general_id_cleaning import DataCleaning
 from config.config_loader import load_config_file
 from validation.general_validation import DataValidator
 from validation.maganamed_validation import VALID_SITE_CODES_AND_CENTER_NAMES
-from maganamed import run_validation_maganamed, execute_corrections_maganamed
+from maganamed import run_validation_maganamed, execute_id_corrections_maganamed
+from utils.rulebook import create_merged_esm_ids_rulebook
 
 valid_center_names = VALID_SITE_CODES_AND_CENTER_NAMES.values()
 
@@ -20,7 +21,7 @@ IDS_REFERENCE_PATH = load_config_file('auxiliarFiles', 'ids_reference')  # From 
 IDS_TO_VERIFY_PATH = load_config_file('auxiliarFiles', 'ids_to_verify')  # Extracted IDs only from GH.
 IDS_MAGANAMED_RULEBOOK_PATH = load_config_file('auxiliarFiles', 'ids_reference_maganamed')
 IDS_ESM_RULEBOOK_PATH = load_config_file('auxiliarFiles', 'ids_reference_esm')
-ID_CLEAN_IMMERSE_PATH = load_config_file('updated_source', 'immerse_clean')
+ID_CLEANING_IMMERSE_PATH = load_config_file('updated_source', 'immerse_clean')
 
 
 # General initial rule: ID validation
@@ -38,17 +39,19 @@ def general_validation_ids(df_control, rulebook, df_to_validate, file):
     if "movisens_esm" in file:
         general_id_cleaning.prepare_ids_correction_from_esm(rulebook, CHANGES_PATH, file)
         general_id_cleaning.changes_to_apply_when_using_rulebook(rulebook, 'movisens_sensing')  # to verify
-        general_id_cleaning.execute_corrections_to_original_tables(ID_CLEAN_IMMERSE_PATH, 'movisens_sensing')
+        general_id_cleaning.execute_corrections_to_original_tables(ID_CLEANING_IMMERSE_PATH, 'movisens_sensing')
 
     elif "maganamed" in file:
         print("Cleaning Maganamed")
-        execute_corrections_maganamed(DB_PATH, ID_CLEAN_IMMERSE_PATH, IDS_MAGANAMED_RULEBOOK_PATH)
+        execute_id_corrections_maganamed(ID_CLEANING_IMMERSE_PATH, IDS_MAGANAMED_RULEBOOK_PATH)
 
     elif "movisens_sensing" in file:
         print("Cleaning movisens_sensing")
+        # TODO: pending to do
 
     elif "dmmh" in file:
         print("Cleaning dmmh")
+        # TODO: pending to do
 
     else:
         print("IMMERSE system not recognised from 'dmmh', 'maganamed', 'movisens_esm', and 'movisens_sensing' ")
@@ -62,9 +65,6 @@ def run_id_validation_from_df(reference_all_ids_directory, rulebook, test_direct
     if os.path.exists(rulebook):
         print("Loading rulebook from: ", rulebook)
         rulebook_df = pd.read_csv(rulebook)
-        # else: # TODO: Uncomment if esm rulebook needs to be created. Note: ID changes must be added manually.
-        #   get_ids_reference_esm()
-        #   rulebook_df = pd.read_excel(rulebook_filepath)
 
         for file in os.listdir(test_directory):
             if file.startswith(filename):
@@ -79,6 +79,7 @@ def run_id_validation_from_df(reference_all_ids_directory, rulebook, test_direct
                 #     general_validation_ids(df_control, rulebook_df, excel_df, file)
     else:
         print(f"\n\033[34mFilepath for rulebook not found!\033[0m\n")
+        create_merged_esm_ids_rulebook()  # TODO: After the file is created, changes must be added manually!
 
 
 def execute_immerse_id_validation():
@@ -94,6 +95,8 @@ def execute_immerse_id_validation():
 
         elif filename.startswith("extracted") and "dmmh" in filename:
             print("TODO: Create a Rulebook for DMMH IDS!")
+
+
 def main():
 
     # -- Rule 0: ID validation.
