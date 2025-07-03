@@ -243,54 +243,6 @@ class DataCleaning:
         # self.changes_df.to_csv(os.path.join(fixes_path, f'updated_changes_{filename}'), index=False)
         return self.changes_df
 
-    def ids_correction_by_regex(self, fixes_path, filename):
-        df_fixes = self.clean_df.copy()
-        print(df_fixes.head())
-        filtering_mask = ((df_fixes['issue_type'] == 'invalid_id') &
-                          (df_fixes['correct_participant_identifier'].isna()))
-
-        def run_id_correction(idx):
-            print(f"applying ids correction for {idx}")
-
-            if isinstance(idx, str):
-                if VALID_PATTERN_USING_MINUS.match(idx) or VALID_PATTERN_USING_UNDERSCORE.match(idx):
-                    pass
-
-                elif idx.startswith("I") and not re.search(r'[_\-—]', idx):
-                    match = re.match(r'^I([A-Z]{2})(P)(\d+)$', idx)
-                    if match:
-                        return f"I-{match.group(1)}-{match.group(2)}-{match.group(3)}"
-
-                elif idx.startswith("I"):
-                    match1 = re.match(r'^I-([A-Z]{2})-([A-Z])(\d+)$', idx)
-                    match2 = re.match(r'^I_([A-Z]{2})_([A-Z])(\d+)$', idx)
-                    match3 = re.match(r'^I([A-Z]{2})([A-Z])(\d+)$', idx)
-
-                    if match1:
-                        print(f"Match {idx} for {match1.group(1)}")
-                        return f"I_{match1.group(1)}_{match1.group(2)}_{match1.group(3)}"
-                    elif match2:
-                        print(f"Match {idx} for {match2.group(1)}")
-                        return f"I_{match2.group(1)}_{match2.group(2)}_{match2.group(3)}"
-                    elif match3:
-                        print(f"Match {idx} for {match2.group(1)}")
-                        return f"I_{match3.group(1)}_{match3.group(2)}_{match3.group(3)}"
-                else:
-                    return ''
-
-        df_fixes.loc[filtering_mask, 'correct_participant_identifier'] = (
-            df_fixes.loc[filtering_mask, 'participant_identifier'].apply(run_id_correction))
-
-        df_fixes['Action'] = df_fixes.apply(  # TODO: break down
-            lambda row: (
-                'switch' if row['issue_type'] == 'invalid_id' and pd.notna(row['correct_participant_identifier'])
-                            and row['correct_participant_identifier'] != '' else 'delete'
-                if row['issue_type'] == 'invalid_id' and (pd.isna(row['correct_participant_identifier'])
-                or row['correct_participant_identifier'] == '') else row['Action']), axis=1)
-
-        df_fixes.to_csv(os.path.join(fixes_path, f'second_fixes_{filename}'), index=False)
-        return df_fixes
-
     '''
     NOTE: 
     
