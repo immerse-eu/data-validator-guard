@@ -16,8 +16,8 @@ Prior to validating the set of rules, a validation for IDs only is carried out t
 
 ## 2. Requirements 
 - Connection to the Research Database with all system sources of IMMERSE.
-- Master ID files with the final IDs accepted for Maganamed, MovisensXS, and REDCap.
-- Define rulebooks for each system which dictate the changes to apply to the tricky IDS. 
+- Master ID files with the final IDs accepted for Maganamed, MovisensXS,DMMH, and REDCap.
+- Defined rulebooks for each system which dictate the changes to apply to the tricky IDS. 
 The script generates a rulebook per system in IMMERSE, however manual changes are required to do! To apply these changes, 
 check the Master ID files. 
 
