@@ -89,7 +89,7 @@ def execute_immerse_id_validation():
             print("Magana", filename)
             run_id_validation_from_df(IDS_REFERENCE_PATH, IDS_MAGANAMED_RULEBOOK_PATH, IDS_TO_VERIFY_PATH, filename)
 
-        elif filename.startswith("extracted") and "movisens" in filename:
+        elif filename.startswith("extracted") and "movisens_esm" in filename:
             print("Movisens", filename)
             # run_id_validation_from_df(IDS_REFERENCE_PATH, IDS_ESM_RULEBOOK_PATH, IDS_TO_VERIFY_PATH, filename)
 
@@ -103,12 +103,11 @@ def main():
     # This function runs a validation from  IDs only. From extracted IDs per SYSTEM, it compares and points out issues
     # according each "Master ID repository", files obtained by Anita as REFERENCE for IDS (using REDCap list,
     # MovisensESM files, and flowchart sheets which describes Participant IDs that were excluded since Baseline).
-    # TODO: Include IDs to exclude from Flowchart-sheets from Anita.
-    # TODO: Adjust function according each rulebook
+
     execute_immerse_id_validation()
 
-    # # MAGANAMED:
-    # # Run all rules defined in IMMERSE DVP-V7.
+    # --- MAGANAMED:
+    # Run all rules defined in IMMERSE DVP-V7.
     # run_validation_maganamed()
     # execute_corrections_maganamed(DB_PATH, ID_CLEAN_IMMERSE_PATH, IDS_MAGANAMED_RULEBOOK_PATH)
 

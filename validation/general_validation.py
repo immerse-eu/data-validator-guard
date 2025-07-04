@@ -1,15 +1,11 @@
-import os
 import re
-
 import pandas as pd
 
 VALID_CENTER_ACRONYMS = ["BI", "LE", "MA", "WI", "BR", "KO", "CA", "LO"]
 VALID_PARTICIPANT_TYPES = ["P", "C", "A"]
 
-VALID_PATTERN_USING_MINUS = re.compile(
-    r"^I-(" + "|".join(VALID_CENTER_ACRONYMS) + r")-(" + "|".join(VALID_PARTICIPANT_TYPES) + r")-\d{3}$")
-VALID_PATTERN_USING_UNDERSCORE = re.compile(
-    r"^I_(" + "|".join(["WI", "MA"]) + r")_(" + "|".join(VALID_PARTICIPANT_TYPES) + r")_\d{3}$")
+VALID_PATTERN_USING_MINUS = re.compile(r"^I-(" + "|".join(VALID_CENTER_ACRONYMS) + r")-(" + "|".join(VALID_PARTICIPANT_TYPES) + r")-\d{3}$")
+VALID_PATTERN_USING_UNDERSCORE = re.compile(r"^I_(" + "|".join(["WI", "MA"]) + r")_(" + "|".join(VALID_PARTICIPANT_TYPES) + r")_\d{3}$")
 
 
 class DataValidator:
@@ -108,7 +104,7 @@ class DataValidator:
 
         if extra_ids:
             extra_ids = self.df[self.df["participant_identifier"].astype(str).str.strip().isin(extra_ids)].copy()
-            extra_ids["issue_type"] = "unknown_id_reference"
+            extra_ids["issue_type"] = "unknown_id_in_reference"
             self.issues.append(extra_ids[["participant_identifier", "issue_type"]])
 
     def report(self, export_path, filename):
@@ -121,7 +117,7 @@ class DataValidator:
                 .agg({"issue_type": lambda x: ", ".join(sorted(set(x)))})
             )
             grouped_issues = grouped_issues.sort_values(by=["issue_type", "participant_identifier"], ascending=True)
-            # grouped_issues.to_csv(os.path.join(export_path, f"issues_{filename}"), index=False)
+            # grouped_issues.to_csv(os.path.join(export_path, f"new_issues_{filename}"), index=False)
             print(f"\n All general issues exported as: {f'issues_{filename}'}")
             return grouped_issues
         else:

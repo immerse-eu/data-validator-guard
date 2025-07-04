@@ -50,6 +50,7 @@ class MovisensxsValidation:
             for code_visit, visit in VALID_TYPE_VISIT_ATTENDANCE.items():
                 for site_name, codes_dict in SITE_CODING_ESM_BY_LAND.items():
                     for site_code in codes_dict:
+
                         filename_structure = f"IMMERSE_{visit}_{site_name}"
 
                         if filename == filename_structure:
@@ -59,9 +60,10 @@ class MovisensxsValidation:
                             correct_visit_code = code_visit in self.movisensxs_df['VisitCode'].unique()
                             correct_period = code_visit in self.movisensxs_df['period'].unique()
 
-                            print('visit_code: ', code_visit,  self.movisensxs_df['VisitCode'].unique())
                             print('site_code: ', site_code, self.movisensxs_df['SiteCode'].unique())
+                            print('visit_code: ', code_visit,  self.movisensxs_df['VisitCode'].unique())
                             print('period: ', code_visit, self.movisensxs_df['period'].unique())
+
                             print(correct_site_code, correct_visit_code, correct_period)
                             return filename_structure, correct_site_code, correct_visit_code, correct_period
 

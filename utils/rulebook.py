@@ -14,19 +14,20 @@ def create_merged_esm_ids_rulebook():
     reference_all_ids = []
 
     for file in os.listdir(ALL_IDS_ESM_REFERENCE_PATH):
-        print(f"Processing file {file}")
 
-        if file.endswith("esm_ids_rulebook.xlsx") and not '~' in file:
+        if not file.endswith("esm_ids_rulebook.xlsx") and '~' not in file:
+            print(f"Processing file {file}")
             df = pd.read_excel(os.path.join(ALL_IDS_ESM_REFERENCE_PATH, file))
             df = df.rename(columns={'study_ID (MaganaMed)': 'participant_identifier'})
-            df_filter = df[['participant_id', 'participant_movi_nr', 'SiteCode', 'participant_identifier']]
+            df_filter = df[['participant_id', 'participant_movi_nr', 'VisitCode', 'SiteCode', 'participant_identifier']]
             df_filter = df_filter[df_filter['participant_id'] != "example"]
             reference_all_ids.append(df_filter)
 
     all_ids_ref_df = pd.concat(reference_all_ids)
     duplicates = all_ids_ref_df[all_ids_ref_df.duplicated()]
     print("Numer duplicates found:", len(duplicates))
-    # duplicates.to_excel(os.path.join(VALID_ESM_IDS_PATH, "duplicated_ids_reference.xlsx"), index=False)
+    duplicates.to_excel(os.path.join(ALL_IDS_ESM_REFERENCE_PATH, "duplicated_ids_reference.xlsx"), index=False)
+
     filter_all_ids = all_ids_ref_df.drop_duplicates()
     filter_all_ids['action'] = filter_all_ids['participant_identifier'].apply(
         lambda x: "delete" if " " in str(x) or "delete" in str(x) or "TEST" in str(x) else (
