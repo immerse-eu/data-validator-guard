@@ -190,26 +190,26 @@ class MaganamedValidation:
             print(f"\n❌ | Issues found in '{self}' :\n'{filter_issues}")
             self.magana_issues.append(filter_issues)
 
-    def validate_completion_questionaries(self, table_name):
-        column_questionaries = [column for column in self.magana_df.columns if column.startswith('SAQ')
+    def validate_completion_questionnaires(self, table_name):
+        column_questionnaires = [column for column in self.magana_df.columns if column.startswith('SAQ')
                                 and not column.startswith('SAQ_total')]
 
         def is_valid_response(x):
             return not (pd.isna(x) or str(x).strip() == '')
 
-        self.magana_df['count_responses'] = self.magana_df[column_questionaries].apply(
+        self.magana_df['count_responses'] = self.magana_df[column_questionnaires].apply(
             lambda row: row.apply(is_valid_response).sum(), axis=1)
 
         self.magana_df['percentage_qre_completed'] = (
-                self.magana_df['count_responses'] / len(column_questionaries) * 100).round(1).astype(int)
+                self.magana_df['count_responses'] / len(column_questionnaires) * 100).round(1).astype(int)
 
         filter_by_80_percent = self.magana_df[self.magana_df['percentage_qre_completed'] >= 80]
 
-        print(f" Number of question columns: {len(column_questionaries)}")
+        print(f" Number of question columns: {len(column_questionnaires)}")
         print(f" Responses with ≥80% completion: {len(filter_by_80_percent)}")
-        print(self.magana_df[['participant_identifier', 'visit_name', 'count_responses', 'percentage_qre_completed']])
+        # print(self.magana_df[['participant_identifier', 'visit_name', 'count_responses', 'percentage_qre_completed']])
 
-        # export_table(self.magana_df, table_name)
+        export_table(self.magana_df, table_name)
         return self.magana_df
 
     #  TODO: Clean and export verified Dx to new_db.
@@ -248,14 +248,13 @@ class MaganamedValidation:
         export_table(filtering_baseline_and_screening, table_name)
 
     def retrieve_saq_data(self):
-        self.validate_completion_questionaries('Service-Attachement-Questionnaire-(SAQ)')
+        self.validate_completion_questionnaires('Service-Attachement-Questionnaire-(SAQ)')
         self.magana_df['visit_name'] = self.magana_df['visit_name'].str.strip().str.extract(r'^(\w+)', expand=False)
         return self.magana_df[['participant_identifier', 'visit_name', 'count_responses', 'percentage_qre_completed']]
 
-    # TODO: Enhance outcome: Example,once finding a match compare idf the other periods have empty responses, if not, is an issue.
     def validate_completed_visits(self, auxiliar_magana_df):
-        self.magana_df['end_01'] = self.magana_df[
-                                       'end_01'] - 1  # Normalized column with "new" VALID_TYPE_VISIT_ATTENDANCE
+        # Normalized column with "new" VALID_TYPE_VISIT_ATTENDANCE
+        self.magana_df['end_01'] = self.magana_df['end_01'] - 1
 
         # Comparison "VALID_TYPES_DICT" between SAQ and END tables, "visit_name" & "end_01" columns.
         merged_magana_df = self.magana_df.merge(auxiliar_magana_df, on='participant_identifier', how='left')
@@ -292,12 +291,9 @@ class MaganamedValidation:
         self.magana_df['estimated_duration_study_in_days'] = self.magana_df['clean_visit_name'].map(
             lambda x: VALID_STUDY_PERIOD_IN_MONTHS.get(x, 0) * 30)
 
-        # TODO: Update "is_a_valid_period" to True/false. Current implementation 1/0.
-        self.magana_df['is_a_valid_period'] = abs(
-            self.magana_df['estimated_duration_study_in_days'] - self.magana_df['duration_study_in_days']) <= 10
+        self.magana_df['is_a_valid_period'] = (abs(
+            self.magana_df['estimated_duration_study_in_days'] - self.magana_df['duration_study_in_days']) <= 10).astype(bool)
 
-        print(self.magana_df[['duration_study_in_days', 'estimated_duration_study_in_days', 'is_a_valid_period']].head(
-            10))
         export_table(self.magana_df, f'{table_name}')
 
     def passed_validation(self, table_name):
