@@ -93,7 +93,7 @@ def run_auxiliary_rule_thirteen(table):
 
 
 def execute_id_corrections_maganamed(clean_source_path, rulebook):
-    rulebook_df = pd.read_csv(rulebook)
+    rulebook_df = pd.read_csv(rulebook, sep=';')
     maganamed_cleaning = DataCleaning(rulebook_df)
     maganamed_cleaning.changes_to_apply_when_using_rulebook(rulebook_df, 'maganamed')  # DONE :D
     maganamed_cleaning.execute_corrections_to_original_tables(clean_source_path, "maganamed")

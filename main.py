@@ -21,7 +21,7 @@ IDS_REFERENCE_PATH = load_config_file('auxiliarFiles', 'ids_reference')  # From 
 IDS_TO_VERIFY_PATH = load_config_file('auxiliarFiles', 'ids_to_verify')  # Extracted IDs only from GH.
 IDS_MAGANAMED_RULEBOOK_PATH = load_config_file('auxiliarFiles', 'ids_reference_maganamed')
 IDS_ESM_RULEBOOK_PATH = load_config_file('auxiliarFiles', 'ids_reference_esm')
-ID_CLEANING_IMMERSE_PATH = load_config_file('updated_source', 'immerse_clean')
+ID_CLEANING_IMMERSE_PATH = load_config_file('updated_source', 'immerse_clean')  # Here are stored a copy of sources which are changing
 
 
 # General initial rule: ID validation
@@ -42,7 +42,7 @@ def general_validation_ids(df_control, rulebook, df_to_validate, file):
         general_id_cleaning.execute_corrections_to_original_tables(ID_CLEANING_IMMERSE_PATH, 'movisens_sensing')
 
     elif "maganamed" in file:
-        print("Cleaning Maganamed")
+        print("Start cleaning maganamed...")
         execute_id_corrections_maganamed(ID_CLEANING_IMMERSE_PATH, IDS_MAGANAMED_RULEBOOK_PATH)
 
     elif "movisens_sensing" in file:
