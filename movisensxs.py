@@ -1,13 +1,16 @@
 import os
 import pandas as pd
 from validation.movisensxs_validation import MovisensxsValidation
+from validation.general_validation import DataValidator
 from config.config_loader import load_config_file
-from database.db import connect_and_fetch_table
 
 ISSUES_PATH = load_config_file('reports', 'issues')
 CHANGES_PATH = load_config_file('reports', 'changes')
 FIXES_PATH = load_config_file('reports', 'fixes')
 NEW_DB_PATH = load_config_file('researchDB', 'cleaned_db')
+
+IDS_REFERENCE_PATH = load_config_file('auxiliarFiles', 'ids_reference')  # From Anita
+IMMERSE_CLEANING_SOURCE = load_config_file('updated_source', 'immerse_clean')
 
 movisens_esm_filenames = [
     'IMMERSE_T0_BE',
@@ -40,19 +43,62 @@ movisens_esm_filenames = [
     'IMMERSE_T3_UK',
 ]
 
+fidelity_files = [
+    "Fidelity_BE.xlsx",
+    "Fidelity_c_UK.xlsx",
+    "Fidelity_GE.xlsx",
+    "Fidelity_SK.xlsx",
+    "Fidelity_UK.xlsx",
+    "IMMERSE_Fidelity_SK_Kosice.xlsx"
+]
 
-# Rule X: Filename contains right data that fits with "Visit" and "Country" selection.
-def movisensxs_rule_one(df, table_name):
+
+def read_dataframe(original_directory, file, immerse_system):
+    for root, dirs, files in os.walk(original_directory):
+        if immerse_system in dirs:
+            sub_folder_path = os.path.join(root, immerse_system)
+            print("subfolder path", sub_folder_path)
+            for folder, _, files in os.walk(sub_folder_path):
+                for filename in files:
+                    if filename.endswith(".xlsx") or filename.endswith(".csv") and file in filename:
+                        filepath = os.path.join(folder, filename)
+                        try:
+                            print("Current filename", filename)
+                            current_df = pd.read_excel(filepath, engine='openpyxl') if filename.endswith(
+                                ".xlsx") else pd.read_csv(filepath)
+                            return current_df
+
+                        except Exception as e:
+                            print(f"Unexpected error in  {filename}", e)
+
+
+# Rule 14 from DVP: Filename contains right data that fits with "Visit" and "Country" selection.
+def movisensxs_rule_fourteen(df, table_name):
     print(f"\n\033[95m Validating '{table_name}' for Visit and Country selection:\033[0m\n")
     rules_movisensxs_validation = MovisensxsValidation(df)
-    rules_movisensxs_validation.validate_visit_and_country_assignation(table_name)
+    rules_movisensxs_validation.validate_visit_country_period_assignation(table_name)
 
 
-# TODO: Upload movisensxs into DB
+# Rule 16 from DVP: Match participant IDs with Maganamed IDs.
+# Rule 17 from DVP: Match clinicians IDs with Maganamed IDs.
+def movisensxs_rule_sixteen_and_seventeen(df, table_name):
+    print(f"\n\033[95m Rule 16 and 17 from DVP. Validating '{table_name}' with Maganamed IDS\033[0m\n")
+    maganamed_ids_reference_df = pd.read_excel(IDS_REFERENCE_PATH)
+
+    validate_ids_from_fidelity_files_with_maganamed = DataValidator(df)
+    validate_ids_from_fidelity_files_with_maganamed.compare_ids_with_redcap_ids(maganamed_ids_reference_df, 0)
+
+
 def run_movisensxs_validation():
+
+    # Movisens ESM
     for filename in movisens_esm_filenames:
-        read_df = connect_and_fetch_table(filename)
-        movisensxs_rule_one(read_df, filename)
+        df = read_dataframe(IMMERSE_CLEANING_SOURCE, filename, 'movisens_esm')
+        print("ESM files", df.info())
+        movisensxs_rule_fourteen(df, filename)
 
-
-run_movisensxs_validation()
+    # Movisens ESM: Fidelity files
+    for filename in fidelity_files:
+        df = read_dataframe(IMMERSE_CLEANING_SOURCE, filename, 'movisens_esm')
+        print("Fidelity files", df.info())
+        movisensxs_rule_sixteen_and_seventeen(df, filename)

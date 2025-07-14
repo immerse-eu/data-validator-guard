@@ -7,6 +7,8 @@ from validation.general_validation import DataValidator
 from validation.maganamed_validation import VALID_SITE_CODES_AND_CENTER_NAMES
 from maganamed import run_validation_maganamed, execute_id_corrections_maganamed
 from utils.rulebook import create_merged_esm_ids_rulebook
+from cleaning.cleaning_db import cleaning_db
+from movisensxs import run_movisensxs_validation
 
 valid_center_names = VALID_SITE_CODES_AND_CENTER_NAMES.values()
 
@@ -17,11 +19,12 @@ ISSUES_PATH = load_config_file('reports', 'issues')
 CHANGES_PATH = load_config_file('reports', 'changes')
 FIXES_PATH = load_config_file('reports', 'fixes')
 
-IDS_REFERENCE_PATH = load_config_file('auxiliarFiles', 'ids_reference')  # From Anita
+IDS_REFERENCE_PATH = load_config_file('auxiliarFiles', 'ids_reference')  # RedCap IDs from Anita
 IDS_TO_VERIFY_PATH = load_config_file('auxiliarFiles', 'ids_to_verify')  # Extracted IDs only from GH.
-IDS_MAGANAMED_RULEBOOK_PATH = load_config_file('auxiliarFiles', 'ids_reference_maganamed')
+IDS_MAGANAMED_RULEBOOK_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_maganamed')
 IDS_ESM_RULEBOOK_PATH = load_config_file('auxiliarFiles', 'ids_reference_esm')
-ID_CLEANING_IMMERSE_PATH = load_config_file('updated_source', 'immerse_clean')  # Here are stored a copy of sources which are changing
+ID_CLEANING_IMMERSE_PATH = load_config_file('updated_source',
+                                            'immerse_clean')  # Here are stored a copy of sources which are changing
 
 
 # General initial rule: ID validation
@@ -106,11 +109,17 @@ def main():
 
     execute_immerse_id_validation()
 
-    # --- MAGANAMED:
+    # # --- MAGANAMED:
     # Run all rules defined in IMMERSE DVP-V7.
-    # run_validation_maganamed()
-    # execute_corrections_maganamed(DB_PATH, ID_CLEAN_IMMERSE_PATH, IDS_MAGANAMED_RULEBOOK_PATH)
+    run_validation_maganamed()
+    cleaning_db(NEW_DB_PATH, system='maganamed')
+
+    # # --MOVISENSXS
+    # Run all rules for Movisens-ESM & Movisens-Sensing defined in IMMERSE DVP-V7.
+    run_movisensxs_validation()
 
 
 if __name__ == "__main__":
     main()
+
+
