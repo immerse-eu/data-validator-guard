@@ -107,3 +107,26 @@ def get_unique_participant_identifier_per_system(system, source_type):
 
 # For source type, there are two options: "database" or "files"
 get_unique_participant_identifier_per_system(system='movisens_esm', source_type='files')
+
+
+'''
+from pathlib import Path
+import pandas as pd
+
+filenames = []
+get_unique_ids = []
+
+csv_files = list(Path.cwd().rglob("*.csv"))
+for csv in csv_files:
+    filenames.append(csv.name)
+    df = pd.read_csv(csv, sep=';')
+    df_filtered = df[['Participant', 'participant_id']]
+
+    unique = df_filtered.drop_duplicates()
+    get_unique_ids.append(unique)
+
+if get_unique_ids:
+    all_unique = pd.concat(get_unique_ids).drop_duplicates()
+    print("Total values across all files:", len(all_unique))
+    print(all_unique.to_string(index=False))
+'''
