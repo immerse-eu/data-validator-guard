@@ -99,7 +99,7 @@ def export_tricky_ids(df):
     if 'participant_id' in df.columns:
         print("participant_id type")
         ids_df = df['participant_id']
-        unique = ids_df['participant_id'].drop_duplicates().dropna()
+        unique = ids_df.drop_duplicates().dropna()
         unique_ids.update(unique)
 
     elif 'study_id' in df.columns:
@@ -132,7 +132,7 @@ def get_unique_participant_identifier_per_system(system, source_type):
                     unique_participant_identifiers.update(participant_identifiers)
 
     if source_type == 'files':
-        dataframes = read_dataframe(original_directory=IMMERSE_CLEANING_SOURCE, immerse_system=system)
+        dataframes = read_all_dataframes(original_directory=IMMERSE_CLEANING_SOURCE, immerse_system=system)
         for df in dataframes:
             unique_identifiers = export_tricky_ids(df)
             unique_participant_identifiers.update(unique_identifiers)
