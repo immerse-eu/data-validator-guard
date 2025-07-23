@@ -97,18 +97,18 @@ def export_tricky_ids(df):
     unique_ids = set()
 
     if 'participant_id' in df.columns:
-        print("participant_id type")
+        # print("participant_id type")
         ids_df = df['participant_id']
         unique = ids_df.drop_duplicates().dropna()
         unique_ids.update(unique)
 
     elif 'study_id' in df.columns:
-        print("study_id type")
+        # print("study_id type")
         ids_df = df['study_id']
         unique_ids.update(ids_df.dropna().unique())
 
     elif 'id' in df.columns:
-        print("id type")
+        # print("id type")
         ids_df = df[['Participant', 'id']]
         unique = ids_df.drop_duplicates()
         unique_ids.update(unique)
