@@ -1,6 +1,7 @@
 # TODO: This function will gather only participant_identifier (IDs) from DB  to control "valid" or "invalid" ids.
 import os
 import pandas as pd
+from pathlib import Path
 
 from database.db import connect_and_fetch_table
 from config.config_loader import load_config_file
@@ -8,6 +9,8 @@ from config.config_loader import load_config_file
 NEW_DB_PATH = load_config_file('researchDB', 'cleaned_db')
 DB_CATALOGUE_PATH = load_config_file('researchDB', 'db_catalogue')
 IMMERSE_CLEANING_SOURCE = load_config_file('updated_source', 'immerse_clean')
+files_to_exclude = ["codebook.xlsx", "Fidelity_BE.xlsx", "Fidelity_c_UK.xlsx", "Fidelity_GE.xlsx",
+                    "Fidelity_SK.xlsx", "Fidelity_UK.xlsx", "IMMERSE_Fidelity_SK_Kosice.xlsx", "Sensing.xlsx"]
 
 
 def detect_separator(filepath):
@@ -40,6 +43,41 @@ def read_dataframe(original_directory, file, immerse_system):
                             print(f"Unexpected error in  {filename}", e)
 
 
+def read_all_dataframes(original_directory, immerse_system):
+    current_sub_directory = None
+    filenames = []
+    dataframes = []
+
+    # -- Get interested directory
+    for root, dirs, files in os.walk(original_directory):
+        if immerse_system in dirs:
+            current_sub_directory = os.path.join(root, immerse_system)
+
+    csv_files = list(Path(current_sub_directory).rglob("*.csv"))
+    excel_files = list(Path(current_sub_directory).rglob("*.xlsx"))
+
+    if csv_files:
+        for csv in csv_files:
+            separator = detect_separator(csv)  # Verify
+            filenames.append(csv.name)
+            print("CSV file:", csv.name)
+            df = pd.read_csv(csv, sep=separator)
+            dataframes.append(df)
+
+    elif excel_files:
+        for excel in excel_files:
+            filenames.append(excel.name)
+            if excel.name in files_to_exclude:
+                continue
+            print("Excel file:", excel.name)
+            df = pd.read_excel(excel)
+            dataframes.append(df)
+    else:
+        pass
+
+    return dataframes
+
+
 def read_db_catalogue(filepath, source):
     if filepath:
         df = pd.read_excel(filepath)
@@ -57,48 +95,50 @@ def export_ids_per_table(df):
 
 def export_tricky_ids(df):
     unique_ids = set()
-    unique_ids_and_participant_number = set()
-    if 'participant_id' in df.columns:
-        print(df['study_id'])
-        ids_df = df['participant_id']
-        unique_ids.update(ids_df.dropna().unique())
-        return unique_ids
 
-    if 'study_id' in df.columns:
-        print(df['study_id'])
+    if 'participant_id' in df.columns:
+        print("participant_id type")
+        ids_df = df['participant_id']
+        unique = ids_df['participant_id'].drop_duplicates().dropna()
+        unique_ids.update(unique)
+
+    elif 'study_id' in df.columns:
+        print("study_id type")
         ids_df = df['study_id']
         unique_ids.update(ids_df.dropna().unique())
-        return unique_ids
 
-    if 'id' in df.columns:
-        ids_df = df['id']  # TODO: It needs participant to identify these which do not have participant ID
-        unique_ids.update(ids_df.dropna().unique())
-        print(unique_ids, len(unique_ids))
-        return unique_ids
+    elif 'id' in df.columns:
+        print("id type")
+        ids_df = df[['Participant', 'id']]
+        unique = ids_df.drop_duplicates()
+        unique_ids.update(unique)
+
+    else:
+        print("No participant id recognised")
+
+    return unique_ids
 
 
 def get_unique_participant_identifier_per_system(system, source_type):
     unique_participant_identifiers = set()
-    filtered_tablename_df = read_db_catalogue(DB_CATALOGUE_PATH, system)
-    for tablename in filtered_tablename_df:
-        print("Table name: ", tablename)
-        if source_type == 'database':
-            sql_df = connect_and_fetch_table(tablename)
-            if sql_df is not None:
-                participant_identifiers = export_ids_per_table(sql_df)
-                unique_participant_identifiers.update(participant_identifiers)
-        if source_type == 'files':
-            df = read_dataframe(original_directory=IMMERSE_CLEANING_SOURCE, file=tablename, immerse_system=system)
-            if 'movisens' in system:
-                participant_identifiers = export_tricky_ids(df)
-                unique_participant_identifiers.update(participant_identifiers)
-            else:
-                participant_identifiers = export_ids_per_table(df)
-                unique_participant_identifiers.update(participant_identifiers)
+    if source_type == 'db':
+        filtered_tablename_df = read_db_catalogue(DB_CATALOGUE_PATH, system)
+        for tablename in filtered_tablename_df:
+            print("Table name: ", tablename)
+            if source_type == 'database':
+                sql_df = connect_and_fetch_table(tablename)
+                if sql_df is not None:
+                    participant_identifiers = export_ids_per_table(sql_df)
+                    unique_participant_identifiers.update(participant_identifiers)
+
+    if source_type == 'files':
+        dataframes = read_dataframe(original_directory=IMMERSE_CLEANING_SOURCE, immerse_system=system)
+        for df in dataframes:
+            unique_identifiers = export_tricky_ids(df)
+            unique_participant_identifiers.update(unique_identifiers)
 
     print("Unique participant identifiers per system: ", len(unique_participant_identifiers))
-    sorted_unique_participants = sorted(unique_participant_identifiers)
-    unique_participants_df = pd.DataFrame(sorted_unique_participants, columns=['participant_identifier'])
+    unique_participants_df = pd.DataFrame(unique_participant_identifiers)
     output_filename = f'new_unique_identifiers_per_participant_from_{system}.csv'
     output_file = os.path.join(os.path.dirname(DB_CATALOGUE_PATH), output_filename)
     unique_participants_df.to_csv(output_file, sep=';', index=False)
@@ -108,25 +148,3 @@ def get_unique_participant_identifier_per_system(system, source_type):
 # For source type, there are two options: "database" or "files"
 get_unique_participant_identifier_per_system(system='movisens_esm', source_type='files')
 
-
-'''
-from pathlib import Path
-import pandas as pd
-
-filenames = []
-get_unique_ids = []
-
-csv_files = list(Path.cwd().rglob("*.csv"))
-for csv in csv_files:
-    filenames.append(csv.name)
-    df = pd.read_csv(csv, sep=';')
-    df_filtered = df[['Participant', 'participant_id']]
-
-    unique = df_filtered.drop_duplicates()
-    get_unique_ids.append(unique)
-
-if get_unique_ids:
-    all_unique = pd.concat(get_unique_ids).drop_duplicates()
-    print("Total values across all files:", len(all_unique))
-    print(all_unique.to_string(index=False))
-'''
