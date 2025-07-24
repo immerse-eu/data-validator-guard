@@ -266,6 +266,7 @@ class MaganamedValidation:
             columns={'visit_name_x': 'visit_name', 'visit_name_y': 'clean_visit_name'})
         merged_magana_df = merged_magana_df.drop(columns=['count_responses'])
         export_table(merged_magana_df, table_name='END_SAQ')
+        # return merged_magana_df
 
     def validate_periods(self, table_name):
         self.magana_df['clean_visit_name'] = self.magana_df['visit_name'].str.strip().str.extract(r'^(\w+)',

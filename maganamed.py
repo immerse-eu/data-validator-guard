@@ -68,7 +68,7 @@ def run_rule_eight(table, filename):
 def run_rule_nine_and_twelve(table, table_name):
     rules_magana_validation = MaganamedValidation(table)
     print(f"\n\033[95m Validating {table_name} completion min 80% :\033[0m\n")
-    updated_table = rules_magana_validation.validate_completion_questionnaires(table_name)
+    rules_magana_validation.validate_completion_questionnaires(table_name)
     print(f"\n\033[95m Validating '{table_name}' correct Time selection (T1-T3):\033[0m\n")
     rules_magana_validation.validate_periods(table_name)
 
