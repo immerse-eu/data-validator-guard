@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from main import connect_and_fetch_table
+from database.db import connect_and_fetch_table
 from config.config_loader import load_config_file
 
 
@@ -16,11 +16,10 @@ def cleaning_df(modifications_path, fixes_path):
         # print("original_df: \n", fixes_df.head(3))
 
         for file in os.listdir(modifications_path):
-            print("Files: ", file)
 
-            if 'kind'in file:
+            if 'kind' in file:
                 modifications_df = pd.read_csv(os.path.join(modifications_path, file))
-                # print("modifications_file: \n", modifications_df.info())
+                print("Modifications: \n", modifications_df.info())
 
                 for _, row in modifications_df.iterrows():
                     normalised_participants_id = row['participant_identifier'].upper()
