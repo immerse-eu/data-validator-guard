@@ -39,14 +39,14 @@ def general_validation_ids(df_control, rulebook, df_to_validate, file):
 
     #  Cleaning process
     general_id_cleaning = DataCleaning(df_report)
-    if "movisens_esm" in file:
+    if "maganamed" in file:
+        print("Start cleaning maganamed...")
+        execute_id_corrections_maganamed(ID_CLEANING_IMMERSE_PATH, IDS_MAGANAMED_RULEBOOK_PATH)
+
+    elif "movisens_esm" in file:
         general_id_cleaning.prepare_ids_correction_from_esm(rulebook, CHANGES_PATH, file)
         general_id_cleaning.changes_to_apply_when_using_rulebook(rulebook, 'movisens_sensing')  # to verify
         general_id_cleaning.execute_corrections_to_original_tables(ID_CLEANING_IMMERSE_PATH, 'movisens_sensing')
-
-    elif "maganamed" in file:
-        print("Start cleaning maganamed...")
-        execute_id_corrections_maganamed(ID_CLEANING_IMMERSE_PATH, IDS_MAGANAMED_RULEBOOK_PATH)
 
     elif "movisens_sensing" in file:
         print("Cleaning movisens_sensing")
@@ -86,27 +86,32 @@ def run_id_validation_from_df(reference_all_ids_directory, rulebook, test_direct
 
 
 def execute_immerse_id_validation():
+    """
+    This function uses the extracted original IDS from each system and runs ID validation using the following files:
+    - IDS_REFERENCE: REDCap Data Source from Maganamed. The most 'reliable' source available of IDS.
+    - IDS_RULEBOOK: Defined rules to apply changes in IDS, such like: DELETE, UPDATE, ADD, MERGE, SKIP.
+    - IDS_TO_VERIFY: Directory of files to verify against the rulebook and reference.
+    """
     for filename in os.listdir(IDS_TO_VERIFY_PATH):
-
         if filename.startswith("extracted") and "maganamed" in filename:
-            print("Magana", filename)
+            print("Maganamed", filename)
             run_id_validation_from_df(IDS_REFERENCE_PATH, IDS_MAGANAMED_RULEBOOK_PATH, IDS_TO_VERIFY_PATH, filename)
 
         elif filename.startswith("extracted") and "movisens_esm" in filename:
-            print("Movisens", filename)
-            # run_id_validation_from_df(IDS_REFERENCE_PATH, IDS_ESM_RULEBOOK_PATH, IDS_TO_VERIFY_PATH, filename)
+            print("Movisens_ESM", filename)
+            run_id_validation_from_df(IDS_REFERENCE_PATH, IDS_ESM_RULEBOOK_PATH, IDS_TO_VERIFY_PATH, filename)
 
-        elif filename.startswith("extracted") and "dmmh" in filename:
+        elif filename.startswith("extracted") and "movisens_sensing" in filename:
+            print("Movisens_Sensing", filename)
+            run_id_validation_from_df(IDS_REFERENCE_PATH, IDS_ESM_RULEBOOK_PATH, IDS_TO_VERIFY_PATH, filename)   # TODO
+
+        elif filename.startswith("extracted") and "dmmh" in filename:  # TODO
             print("TODO: Create a Rulebook for DMMH IDS!")
 
 
 def main():
 
-    # -- Rule 0: ID validation.
-    # This function runs a validation from  IDs only. From extracted IDs per SYSTEM, it compares and points out issues
-    # according each "Master ID repository", files obtained by Anita as REFERENCE for IDS (using REDCap list,
-    # MovisensESM files, and flowchart sheets which describes Participant IDs that were excluded since Baseline).
-
+    # # --- Rule 0: ID validation.
     execute_immerse_id_validation()
 
     # # --- MAGANAMED:
@@ -114,7 +119,7 @@ def main():
     run_validation_maganamed()
     cleaning_db(NEW_DB_PATH, system='maganamed')
 
-    # # --MOVISENSXS
+    # # --- MOVISENSXS
     # Run all rules for Movisens-ESM & Movisens-Sensing defined in IMMERSE DVP-V7.
     run_movisensxs_validation()
 
