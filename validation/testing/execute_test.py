@@ -22,7 +22,7 @@ def run_test_with_mock_data():
 
     # -- STEP 2. Run a general validation: typos, and duplicates
     validator = DataValidator(df)
-    validator.check_duplicates(df)
+    validator.check_general_duplications(df)
     validator.check_typos(column="city", dictionary=VALID_CITIES)
 
     # -- STEP 3. Output analysis report
