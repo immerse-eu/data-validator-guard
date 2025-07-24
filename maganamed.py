@@ -5,7 +5,7 @@ from database.db import connect_and_fetch_table
 from validation.general_validation import DataValidator
 from validation.maganamed_validation import (VALID_SITE_CODES_AND_CENTER_NAMES, MaganamedValidation,
                                              import_custom_csr_df_with_language_selection)
-from utils.create_auxiliar_files import filter_only_participants
+from utils.auxiliar_functions import filter_only_participants
 from cleaning.general_id_cleaning import DataCleaning
 
 CSRI_list = ["CSRI", "CSRI_GE", "CSRI_BE", "CSRI_SK"]
