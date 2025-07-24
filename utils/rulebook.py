@@ -5,7 +5,7 @@ from config.config_loader import load_config_file
 
 IDS_REFERENCE_PATH = load_config_file('auxiliarFiles', 'ids_reference')  # From Anita
 ALL_IDS_ESM_REFERENCE_PATH = load_config_file('auxiliarFiles', 'all_ids_esm_reference')
-IDS_MAGANAMED_RULEBOOK_PATH = load_config_file('auxiliarFiles', 'ids_reference_maganamed')
+IDS_MAGANAMED_RULEBOOK_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_maganamed')
 IDS_ESM_RULEBOOK_PATH = load_config_file('auxiliarFiles', 'ids_reference_esm')
 VALID_ESM_IDS_PATH = load_config_file('auxiliarFiles', 'ids_reference_esm')
 
