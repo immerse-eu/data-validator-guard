@@ -5,6 +5,13 @@ from utils.rulebook import get_columns_from_id_reference
 
 warnings.simplefilter(action='ignore', category=UserWarning)
 
+# files that have a different structure or do not have participants' IDs, but clinicians IDs.
+files_to_exclude = ["Sensing.xlsx", "codebook.xlsx", "~$IMMERSE_T0_BE.xlsx",
+                    "Fidelity_BE.xlsx", "Fidelity_c_UK.xlsx", "Fidelity_GE.xlsx", "Fidelity_SK.xlsx",
+                    "Fidelity_UK.xlsx", "IMMERSE_Fidelity_SK_Kosice.xlsx",
+                    "Service-characteristics-(Teamleads).csv",
+                    "Service-characteristics.csv", "ORCA.csv"]
+
 
 class DataCleaning:
 
@@ -23,7 +30,8 @@ class DataCleaning:
         self.assign_id_to_T3 = set()
 
     # Step 1: Define changes to apply from rulebook
-    # This function (changes_to_apply_when_using_rulebook) applies changes in IDS using a "rulebook" to the existing IDS.
+    # This function (changes_to_apply_when_using_rulebook) applies changes in IDS using a "rulebook"
+    # to the existing IDS.
     def changes_to_apply_when_using_rulebook(self, rulebook, system):
 
         self.changes_df.copy()
@@ -33,7 +41,7 @@ class DataCleaning:
             correct_participant_identifier = row.get('correct_participant_identifier')
             action = str(row['action']).strip()
 
-            # This section defines the type of keys, magana  requires 2 values, while esm just one key.
+            # This section defines the type of keys, magana requires 2 values, while esm just one key.
             if "esm" in system:
                 participant_number = row['participant_number']
                 key = (participant_identifier, participant_number)
@@ -53,15 +61,15 @@ class DataCleaning:
                 continue
 
             if action.startswith('use') and key is not None:  # TODO:Fix merging
-                continue
-                # if "T0" in action:
-                #     self.assign_id_to_T0[key].add(correct_participant_identifier)
-                # if "T1" in action:
-                #     self.assign_id_to_T1[key].add(correct_participant_identifier)
-                # if "T2" in action:
-                #     self.assign_id_to_T2[key].add(correct_participant_identifier)
-                # if "T3" in action:
-                #     self.assign_id_to_T3[key].add(correct_participant_identifier)
+                # continue
+                if "T0" in action:
+                    self.assign_id_to_T0[key] = correct_participant_identifier
+                if "T1" in action:
+                    self.assign_id_to_T1[key] = correct_participant_identifier
+                if "T2" in action:
+                    self.assign_id_to_T2[key] = correct_participant_identifier
+                if "T3" in action:
+                    self.assign_id_to_T3[key] = correct_participant_identifier
 
             if action.startswith('update') and key is not None:
                 if system == 'maganamed':
@@ -189,15 +197,7 @@ class DataCleaning:
     # Step 4.  Changes to apply to ORIGINAL_IMMERSE_SOURCE
     def execute_corrections_to_original_tables(self, original_directory: str, immerse_system):
         # df_issues = self.df.copy()
-
         immerse_clean_dfs = {}
-        # files that have a different structure or do not have participants' IDs
-        files_to_exclude = ["Sensing.xlsx", "codebook.xlsx", "~$IMMERSE_T0_BE.xlsx",
-                            "Fidelity_BE.xlsx", "Fidelity_c_UK.xlsx", "Fidelity_GE.xlsx", "Fidelity_SK.xlsx",
-                            "Fidelity_UK.xlsx", "IMMERSE_Fidelity_SK_Kosice.xlsx",
-                            "Service-characteristics-(Teamleads).csv",
-                            "Service-characteristics.csv", "ORCA.csv"]
-
         # files_to_focus =  "Kind-of-participant.csv"
 
         for root, dirs, files in os.walk(original_directory):
