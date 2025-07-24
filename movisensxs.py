@@ -3,6 +3,7 @@ import pandas as pd
 from validation.movisensxs_validation import MovisensxsValidation
 from validation.general_validation import DataValidator
 from config.config_loader import load_config_file
+from utils.retrieve_participants_ids import read_dataframe
 
 ISSUES_PATH = load_config_file('reports', 'issues')
 CHANGES_PATH = load_config_file('reports', 'changes')
@@ -51,25 +52,6 @@ fidelity_files = [
     "Fidelity_UK.xlsx",
     "IMMERSE_Fidelity_SK_Kosice.xlsx"
 ]
-
-
-def read_dataframe(original_directory, file, immerse_system):
-    for root, dirs, files in os.walk(original_directory):
-        if immerse_system in dirs:
-            sub_folder_path = os.path.join(root, immerse_system)
-            print("subfolder path", sub_folder_path)
-            for folder, _, files in os.walk(sub_folder_path):
-                for filename in files:
-                    if filename.endswith(".xlsx") or filename.endswith(".csv") and file in filename:
-                        filepath = os.path.join(folder, filename)
-                        try:
-                            print("Current filename", filename)
-                            current_df = pd.read_excel(filepath, engine='openpyxl') if filename.endswith(
-                                ".xlsx") else pd.read_csv(filepath)
-                            return current_df
-
-                        except Exception as e:
-                            print(f"Unexpected error in  {filename}", e)
 
 
 # Rule 14 from DVP: Filename contains right data that fits with "Visit" and "Country" selection.
