@@ -1,4 +1,3 @@
-# TODO: This function will gather only participant_identifier (IDs) from DB  to control "valid" or "invalid" ids.
 import os
 import pandas as pd
 from pathlib import Path
@@ -111,8 +110,11 @@ def export_tricky_ids(df):
         # print("id type")
         ids_df = df[['Participant', 'id']]
         unique = ids_df.drop_duplicates()
-        unique_ids.update(unique)
-
+        unique_ids.update(set(zip(unique['Participant'], unique['id'])))
+        # ---> Uncomment just for fidelity files!!
+        # ids_df = df[['Participant', 'patient_id', 'id']]
+        # unique = ids_df.drop_duplicates()
+        # unique_ids.update(set(zip(unique['Participant'], unique['patient_id'], unique['id'])))
     else:
         print("No participant id recognised")
 
