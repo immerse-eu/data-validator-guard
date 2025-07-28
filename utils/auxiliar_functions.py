@@ -1,8 +1,11 @@
+import csv
 import os
 import pandas as pd
 from config.config_loader import load_config_file
 from validation.seach_values import execute_search
+from utils.retrieve_participants_ids import read_all_dataframes
 
+IMMERSE_GENERAL_REPOSITORY_PATH = load_config_file('immerse_master_repository', 'general_repository')
 IMMERSE_ORIGINAL_SOURCE_PATH = load_config_file('original_source', 'immerse')
 ID_CLEAN_IMMERSE_PATH = load_config_file('updated_source', 'immerse_clean')
 
@@ -63,3 +66,24 @@ def convert_file_to_csv(path, filename):
     df = pd.read_excel(filepath)
     df.to_csv(filename.replace(".xlsx", ".csv"), sep=";", index=False)
     print(f"Processing: {filename}")
+
+
+def create_codebook(directory, system):
+    codebook = set()
+
+    print(f"Creating codebook for {system}...")
+    dataframes = read_all_dataframes(directory, system)
+    for dataframe in dataframes:
+        print(dataframe.columns)
+        if not dataframe.empty:
+            codebook.update(dataframe.columns)
+
+    codebook_df = pd.DataFrame({f'variables_{system}': sorted(codebook)})
+    excel_filepath = os.path.join(IMMERSE_GENERAL_REPOSITORY_PATH, f"codebook_{system}.xlsx")
+    codebook_df.to_excel(excel_filepath, index=False)
+    # csv_filepath = os.path.join(IMMERSE_GENERAL_REPOSITORY_PATH, f"codebook_{system}.csv")
+    # codebook_df.to_csv(csv_filepath, index=False, sep=';', quoting=csv.QUOTE_NONNUMERIC)
+    print(f"Codebook size: {len(codebook)} , successfully exported as: {excel_filepath}!")
+
+
+# create_codebook(IMMERSE_ORIGINAL_SOURCE_PATH, 'dmmh')
