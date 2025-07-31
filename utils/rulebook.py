@@ -5,9 +5,8 @@ from config.config_loader import load_config_file
 
 IDS_REFERENCE_PATH = load_config_file('auxiliarFiles', 'ids_reference')  # From Anita
 ALL_IDS_ESM_REFERENCE_PATH = load_config_file('auxiliarFiles', 'all_ids_esm_reference')
-IDS_MAGANAMED_RULEBOOK_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_maganamed')
-IDS_ESM_RULEBOOK_PATH = load_config_file('auxiliarFiles', 'ids_reference_esm')
-VALID_ESM_IDS_PATH = load_config_file('auxiliarFiles', 'ids_reference_esm')
+RULEBOOK_IDS_MAGANAMED_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_maganamed')
+RULEBOOK_IDS_MOVISENS_ESM_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_esm')
 
 
 def create_merged_esm_ids_rulebook():
@@ -39,7 +38,6 @@ def create_merged_esm_ids_rulebook():
 
 def get_columns_from_id_reference():
     id_reference_df = pd.read_excel(IDS_REFERENCE_PATH)
-    # TODO: Verify with Anita
     id_reference_df = id_reference_df.rename(columns={'study_id_pat': 'correct_participant_identifier',
                                                       'ESMcondition': 'randomize'})
     interested_id_reference_df = id_reference_df[['correct_participant_identifier',
@@ -51,7 +49,7 @@ def get_columns_from_id_reference():
 
 
 def add_site_codes_to_rulebook():
-    rulebook_df = pd.read_csv(IDS_MAGANAMED_RULEBOOK_PATH)
+    rulebook_df = pd.read_csv(RULEBOOK_IDS_MAGANAMED_PATH)
     interested_id_reference_df = get_columns_from_id_reference()
 
     merged_df = pd.merge(rulebook_df, interested_id_reference_df,
@@ -68,7 +66,7 @@ def add_site_codes_to_rulebook():
 
     print(merged_df.info())
 
-    path = os.path.dirname(IDS_MAGANAMED_RULEBOOK_PATH)
+    path = os.path.dirname(RULEBOOK_IDS_MAGANAMED_PATH)
     file_name = "merged_rulebook_maganamed.csv"
 
     filepath = os.path.join(path, file_name)
