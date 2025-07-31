@@ -1,3 +1,4 @@
+import csv
 import os
 import warnings
 import pandas as pd
@@ -41,10 +42,16 @@ class DataCleaning:
             correct_participant_identifier = row.get('correct_participant_identifier')
             action = str(row['action']).strip()
 
-            # This section defines the type of keys, magana requires 2 values, while esm just one key.
+            # This section defines the type of keys, ESM requires 4 values, while Magana just one key.
+            # Note: To apply these changes, column SiteCode and VisitCode must already exist in the data.
+            # In addition, "participant_identifier" will be not used since there are some missing values.
             if "esm" in system:
                 participant_number = row['participant_number']
-                key = (participant_identifier, participant_number)
+                visit_code = row['VisitCode']
+                site_code = row['SiteCode']
+                if participant_identifier is not None:
+                    key = (participant_identifier, participant_number, visit_code, site_code)
+
             elif "maganamed" in system:
                 key = participant_identifier
             else:
@@ -61,15 +68,15 @@ class DataCleaning:
                 continue
 
             if action.startswith('use') and key is not None:  # TODO:Fix merging
-                # continue
-                if "T0" in action:
-                    self.assign_id_to_T0[key] = correct_participant_identifier
-                if "T1" in action:
-                    self.assign_id_to_T1[key] = correct_participant_identifier
-                if "T2" in action:
-                    self.assign_id_to_T2[key] = correct_participant_identifier
-                if "T3" in action:
-                    self.assign_id_to_T3[key] = correct_participant_identifier
+                continue
+                # if "T0" in action:
+                #     self.assign_id_to_T0[key] = correct_participant_identifier
+                # if "T1" in action:
+                #     self.assign_id_to_T1[key] = correct_participant_identifier
+                # if "T2" in action:
+                #     self.assign_id_to_T2[key] = correct_participant_identifier
+                # if "T3" in action:
+                #     self.assign_id_to_T3[key] = correct_participant_identifier
 
             if action.startswith('update') and key is not None:
                 if system == 'maganamed':
@@ -83,15 +90,18 @@ class DataCleaning:
                     self.update_ids[key] = correct_participant_identifier
 
             if action.startswith('merge') and key is not None:  # TODO: Check correctness of merging
-                # continue
-                extract_participant_number_to_merge = action.split("merge")[1].strip()
-                if "-" in extract_participant_number_to_merge:
-                    participant_numbers_to_merge = extract_participant_number_to_merge.split("-")
-                    for part_number in participant_numbers_to_merge:
-                        self.merge_ids[part_number.strip()] = correct_participant_identifier
-                        print('extract_participant_number_to_merge', part_number, correct_participant_identifier)
+                self.merge_ids[key] = correct_participant_identifier
+                continue
+                # extract_participant_number_to_merge = action.split("merge")[1].strip()
+                # if "-" in extract_participant_number_to_merge:
+                #     participant_numbers_to_merge = extract_participant_number_to_merge.split("-")
+                #     for part_number in participant_numbers_to_merge:
+                #         self.merge_ids[part_number.strip()] = correct_participant_identifier
+                #         print('extract_participant_number_to_merge', part_number, correct_participant_identifier)
 
-        print("to delete:", self.delete_ids, "to update: ", self.update_ids)
+        print("to delete:", self.delete_ids,  "\nto update: ", self.update_ids, "\nto add: ", self.add_ids, "\nto merge: ", self.merge_ids)
+
+
 
     # Step 2. Apply changes from rulebook
     def _apply_changes_from_rulebook(self, current_df, participant_identifier, participant_number, filename, system):
@@ -250,25 +260,41 @@ class DataCleaning:
         return immerse_clean_dfs
 
     def issues_to_correct_from_esm_rulebook(self, esm_rulebook, fixes_path, filename):
+        '''
+        In this step, rename columns in esm_rulebook to guarantee columns name across different rulebooks.
+        In addition, detected issues are merged with the rulebook to create a merged filed with the specific changes
+        that should be carried out.
+        '''
+
         df_issues = self.df.copy()
         merged_esm_ids_rulebook_df = esm_rulebook
 
-        merged_esm_ids_rulebook_df.rename(columns={merged_esm_ids_rulebook_df.columns[0]: 'participant_identifier'},
-                                          inplace=True)
-        merged_esm_ids_rulebook_df.rename(columns={merged_esm_ids_rulebook_df.columns[1]: 'participant_number'},
-                                          inplace=True)
         merged_esm_ids_rulebook_df.rename(
-            columns={merged_esm_ids_rulebook_df.columns[3]: 'correct_participant_identifier'},
+            columns={merged_esm_ids_rulebook_df.columns[0]: 'participant_identifier'}, inplace=True)
+        merged_esm_ids_rulebook_df.rename(
+            columns={merged_esm_ids_rulebook_df.columns[1]: 'participant_number'}, inplace=True)
+        merged_esm_ids_rulebook_df.rename(
+            columns={merged_esm_ids_rulebook_df.columns[4]: 'correct_participant_identifier'},
             inplace=True)
 
-        df_issues['participant_identifier'] = df_issues['participant_identifier'].astype(str)
-        merged_esm_ids_rulebook_df['participant_identifier'] = merged_esm_ids_rulebook_df[
-            'participant_identifier'].astype(str)
+        merged_esm_ids_rulebook_df['action'] = merged_esm_ids_rulebook_df['action'].astype(str)
 
+        if 'SiteCode' in merged_esm_ids_rulebook_df.columns:
+            merged_esm_ids_rulebook_df['SiteCode'] = merged_esm_ids_rulebook_df['SiteCode'].apply(
+                lambda x: int(x) if isinstance(x, float) and not pd.isnull(x) else '')
+
+        # Option 1: Use a copy of the rulebook with the new column naming convention.
+        updated_rulebook_df = merged_esm_ids_rulebook_df.copy()
+
+        # Option 2: Merging issues with rulebook to define and export changes.csv
+        df_issues['participant_identifier'] = df_issues['participant_identifier']
+        merged_esm_ids_rulebook_df['participant_identifier'] = merged_esm_ids_rulebook_df['participant_identifier'].astype(str)
         self.changes_df = pd.merge(df_issues, merged_esm_ids_rulebook_df, on='participant_identifier', how='inner')
         # self.changes_df.to_csv(os.path.join(fixes_path, f'updated_changes_{filename}'), index=False)
-        return self.changes_df
 
+        return updated_rulebook_df
+
+# ---> Step 1 ESM
     def prepare_ids_correction_from_esm(self, esm_rulebook, changes_path, filename):
         '''
           The following method requires 2 input sources to clean ids:
@@ -278,9 +304,9 @@ class DataCleaning:
 
         print(f"\n\033[32mStarting cleaning process from '{filename}' \033[0m\n")
 
-        if "movisens" in filename:
-            self.changes_df = self.issues_to_correct_from_esm_rulebook(esm_rulebook, changes_path, filename)
-            return self.changes_df
+        if "movisens_esm" in filename:
+            new_esm_rulebook = self.issues_to_correct_from_esm_rulebook(esm_rulebook, changes_path, filename)
+            return new_esm_rulebook
         # self.execute_corrections_to_original_tables(original_source_path, esm_rulebook)
         # self.execute_corrections_to_original_tables(original_source_path)
 
