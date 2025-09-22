@@ -5,7 +5,7 @@ from config.config_loader import load_config_file
 from validation.seach_values import execute_search
 from utils.retrieve_participants_ids import read_all_dataframes
 
-IMMERSE_GENERAL_REPOSITORY_PATH = load_config_file('immerse_master_repository', 'general_repository')
+IMMERSE_GENERAL_REPOSITORY_PATH = load_config_file('immerse_general_repository', 'general_repository')
 IMMERSE_ORIGINAL_SOURCE_PATH = load_config_file('original_source', 'immerse')
 ID_CLEAN_IMMERSE_PATH = load_config_file('updated_source', 'immerse_clean')
 
@@ -72,18 +72,44 @@ def create_codebook(directory, system):
     codebook = set()
 
     print(f"Creating codebook for {system}...")
-    dataframes = read_all_dataframes(directory, system)
-    for dataframe in dataframes:
-        print(dataframe.columns)
-        if not dataframe.empty:
-            codebook.update(dataframe.columns)
+    dataframes, filenames = read_all_dataframes(directory, system)
+    rows = []
+    for df, file in zip(dataframes, filenames):
+        if not df.empty:
+            for col in df.columns:
+                rows.append({
+                    f'variables_{system}': col,
+                    'filename': file.replace(".csv", "")
+                })
 
-    codebook_df = pd.DataFrame({f'variables_{system}': sorted(codebook)})
+    codebook_df = pd.DataFrame(rows)
     excel_filepath = os.path.join(IMMERSE_GENERAL_REPOSITORY_PATH, f"codebook_{system}.xlsx")
     codebook_df.to_excel(excel_filepath, index=False)
-    # csv_filepath = os.path.join(IMMERSE_GENERAL_REPOSITORY_PATH, f"codebook_{system}.csv")
-    # codebook_df.to_csv(csv_filepath, index=False, sep=';', quoting=csv.QUOTE_NONNUMERIC)
+    csv_filepath = os.path.join(IMMERSE_GENERAL_REPOSITORY_PATH, f"codebook_{system}.csv")
+    codebook_df.to_csv(csv_filepath, index=False, sep=';', quoting=csv.QUOTE_NONNUMERIC)
     print(f"Codebook size: {len(codebook)} , successfully exported as: {excel_filepath}!")
 
 
-# create_codebook(IMMERSE_ORIGINAL_SOURCE_PATH, 'dmmh')
+def merge_dataframes(f1, f2, system):
+    print("Merging dfs..")
+    print(f1, "\n", f2)
+    df1 = pd.read_csv(f1, sep=",") if f1.endswith(".csv") else pd.read_excel(f1, engine='openpyxl')
+    df2 = pd.read_csv(f1, sep=",") if f1.endswith(".csv") else pd.read_excel(f1, engine='openpyxl')
+
+    df1.info()
+    df2.info()
+
+    on_cols = (
+        ['participant_identifier', 'participant_number', 'VisitCode', 'SiteCode']
+        if "movisens_esm" in system
+        else 'participant_identifier'
+    )
+    how = "outer" if "movisens_esm" in system else "left"
+
+    merged_df = pd.merge(df1, df2, on=on_cols, how=how)
+    filename = f"{system}_rulebook_merged_with_current_ids.xlsx"
+    merged_df.to_excel(filename, index=False)
+
+
+# create_codebook(ID_CLEAN_IMMERSE_PATH, 'maganamed')
+# merge_dataframes(f1_path, f2_path, "dmmh")
