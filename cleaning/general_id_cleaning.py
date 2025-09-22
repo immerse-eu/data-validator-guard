@@ -22,8 +22,8 @@ system_configs = {
         'folder': 'cleaned_ids_maganamed',
     },
     'movisens_esm': {
-        'column_id': 'participant_id',
-        'column_id_number': 'participant_movi_nr',
+        'column_id': 'participant_identifier',
+        'column_id_number': 'participant_number',
         'folder': 'cleaned_ids_movisens_esm',
     },
     'movisens_esm_fidelity': {
@@ -50,7 +50,6 @@ class DataCleaning:
         self.df = df
         self.changes_df = df.copy()
         self.clean_df = df.copy()
-
         self.delete_ids = set()
         self.merge_ids = {}
         self.add_ids = {}
@@ -79,7 +78,7 @@ class DataCleaning:
                 participant_number = row['participant_number']
                 visit_code = row['VisitCode']
                 site_code = row['SiteCode']
-                if participant_identifier is not None:
+                if participant_identifier:
                     key = (participant_identifier, participant_number, visit_code, site_code)
 
             elif "maganamed" in system:
@@ -129,7 +128,8 @@ class DataCleaning:
                 #         self.merge_ids[part_number.strip()] = correct_participant_identifier
                 #         print('extract_participant_number_to_merge', part_number, correct_participant_identifier)
 
-        print("to delete:", self.delete_ids,  "\nto update: ", self.update_ids, "\nto add: ", self.add_ids, "\nto merge: ", self.merge_ids)
+        print("to delete:", self.delete_ids, "\nto update: ", self.update_ids, "\nto add: ", self.add_ids,
+              "\nto merge: ", self.merge_ids)
 
     # Step 2. Apply changes from rulebook
     def _apply_changes_from_rulebook(self, current_df, participant_identifier, participant_number, filename, system):
@@ -140,36 +140,38 @@ class DataCleaning:
         if self.delete_ids:
             print('IDs to delete: ', self.delete_ids)
             if "movisens_esm" in system:
+                # TODO: Verify functionality
                 current_immerse_df = current_immerse_df[~current_immerse_df.apply(
-                    lambda row: (str(row[participant_identifier]),
+                    lambda row: (row[participant_identifier],
                                  row[participant_number],
                                  row['VisitCode'],
                                  row['SiteCode']) in self.delete_ids, axis=1)]
 
-            current_immerse_df = current_immerse_df[~current_immerse_df.apply(
-                lambda row: (str(row[participant_identifier])) in self.delete_ids, axis=1)]
+            else:
+                current_immerse_df = current_immerse_df[~current_immerse_df.apply(
+                    lambda row: (str(row[participant_identifier])) in self.delete_ids, axis=1)]
 
         # # Case 2: Merging IDs
-        # if self.merge_ids:
-        #     print("IDs to Merge: ", self.merge_ids)
-        #     if "movisens_esm" in system:
-        #         current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
-        #             lambda row: self.merge_ids.get(row[participant_number], row['correct_participant_id']), axis=1)
-        #
-        #     current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
-        #         lambda row: self.merge_ids.get(row[participant_identifier], row['correct_participant_id']), axis=1)
-        #
+        if self.merge_ids:
+            print("IDs to Merge: ", self.merge_ids)
+            if "movisens_esm" in system:
+                current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
+                    lambda row: self.merge_ids.get(row[participant_number], row['correct_participant_id']), axis=1)
+            else:
+                current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
+                    lambda row: self.merge_ids.get(row[participant_identifier], row['correct_participant_id']), axis=1)
+
         # Case 3: Adding IDS
         if self.add_ids:
             print("IDs to Add: ", self.add_ids)
             if "movisens_esm" in system:
-                print("IDs to update: ", self.add_ids)
                 current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
                     lambda row: self.add_ids.get((
-                        str(row[participant_identifier]),
+                        row[participant_identifier],
                         row[participant_number],
                         row['VisitCode'],
-                        row['SiteCode']), row['correct_participant_id'])
+                        row['SiteCode']),
+                        row.get('correct_participant_id', None))
                     , axis=1)
             # current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
             #     lambda row: self.add_ids.get(row[participant_number], row['correct_participant_id'])
@@ -179,14 +181,22 @@ class DataCleaning:
         # Case 4: Update IDS
         if self.update_ids:
             if "movisens_esm" in system:
-                print("IDs to update: ", self.update_ids)
-                current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
-                    lambda row: self.update_ids.get((
-                        str(row[participant_identifier]),
-                        row[participant_number],
-                        row['VisitCode'],
-                        row['SiteCode']), row['correct_participant_id'])
-                    , axis=1)
+                print("IDs to update : ", self.update_ids)
+
+                normalize_ids = {
+                    tuple(str(x).strip() for x in k): value
+                    for k, value in self.update_ids.items()
+                }
+
+                def lookup_row(row):
+                    key = (
+                        str(row[participant_identifier]).strip(),
+                        str(row[participant_number]).strip(),
+                        str(row['VisitCode']).strip(),
+                        str(row['SiteCode']).strip()
+                    )
+                    return normalize_ids.get(key, row.get('correct_participant_id'))
+                current_immerse_df['correct_participant_id'] = current_immerse_df.apply(lookup_row, axis=1)
 
             # Maganamed
             # current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
@@ -276,8 +286,8 @@ class DataCleaning:
             cleaned_folder.mkdir(parents=True, exist_ok=True)
 
             for filename, dataframe in filenames_and_dataframes:
+                print(f"Processing {filename}")
                 try:
-                    print(f"Processing {filename}")
                     df = self._apply_changes_from_rulebook(
                         dataframe,
                         config['column_id'],
@@ -321,27 +331,35 @@ class DataCleaning:
         merged_esm_ids_rulebook_df.rename(
             columns={merged_esm_ids_rulebook_df.columns[1]: 'participant_number'}, inplace=True)
         merged_esm_ids_rulebook_df.rename(
-            columns={merged_esm_ids_rulebook_df.columns[4]: 'correct_participant_identifier'},
+            columns={merged_esm_ids_rulebook_df.columns[5]: 'correct_participant_identifier'},
             inplace=True)
 
         merged_esm_ids_rulebook_df['action'] = merged_esm_ids_rulebook_df['action'].astype(str)
 
+        # Change float to int values
+        if 'VisitCode' in merged_esm_ids_rulebook_df.columns:
+            merged_esm_ids_rulebook_df['VisitCode'] = merged_esm_ids_rulebook_df['VisitCode'].apply(
+                lambda x: int(x) if isinstance(x, float) and not pd.isnull(x) else '')
+
+        # # Change float to int values
         if 'SiteCode' in merged_esm_ids_rulebook_df.columns:
             merged_esm_ids_rulebook_df['SiteCode'] = merged_esm_ids_rulebook_df['SiteCode'].apply(
-                lambda x: int(x) if isinstance(x, float) and not pd.isnull(x) else '')
+                lambda x: int(x) if isinstance(x, float) and not pd.isnull(x) else x)
 
         # Option 1: Use a copy of the rulebook with the new column naming convention.
         updated_rulebook_df = merged_esm_ids_rulebook_df.copy()
 
         # Option 2: Merging issues with rulebook to define and export changes.csv
         df_issues['participant_identifier'] = df_issues['participant_identifier']
-        merged_esm_ids_rulebook_df['participant_identifier'] = merged_esm_ids_rulebook_df['participant_identifier'].astype(str)
+        merged_esm_ids_rulebook_df['participant_identifier'] = merged_esm_ids_rulebook_df[
+            'participant_identifier'].astype(str)
         self.changes_df = pd.merge(df_issues, merged_esm_ids_rulebook_df, on='participant_identifier', how='inner')
-        # self.changes_df.to_csv(os.path.join(fixes_path, f'updated_changes_{filename}'), index=False)
+        self.changes_df.to_csv(os.path.join(fixes_path, f'test_updated_changes_{filename}'), index=False)
 
-        return updated_rulebook_df
+        updated_rulebook_df.to_csv(os.path.join(fixes_path, f'test2_updated_rulebook.csv'), index=False)
+        return
 
-# ---> Step 1 ESM
+    # ---> Step 1 ESM
     def prepare_ids_correction_from_esm(self, esm_rulebook, changes_path, filename):
         '''
           The following method requires 2 input sources to clean ids:
