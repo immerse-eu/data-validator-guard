@@ -1,5 +1,6 @@
 import csv
 import os
+import traceback
 import warnings
 import pandas as pd
 from pathlib import Path
@@ -37,9 +38,14 @@ system_configs = {
         'folder': 'cleaned_ids_movisens_sensing',
     },
     'dmmh': {
-        'column_id': 'study_id',
-        'column_id_number': 'participant',
+        'column_id': 'Participant',
+        'column_id_number': None,
         'folder': 'cleaned_ids_dmmh',
+    },
+    'redcap': {
+        'column_id': 'participant_identifier',   # Alternative: "record_id"
+        'column_id_number': None,
+        'folder': 'cleaned_ids_redcap',
     },
 }
 
@@ -59,10 +65,18 @@ class DataCleaning:
         self.assign_id_to_T2 = set()
         self.assign_id_to_T3 = set()
 
-    # Step 1: Define changes to apply from rulebook
-    # This function (changes_to_apply_when_using_rulebook) applies changes in IDS using a "rulebook"
-    # to the existing IDS.
+    # ---> Step 2.
+    # This function identifies the KEYs to apply changes (add, delete, update, etc...) in original data.
     def changes_to_apply_when_using_rulebook(self, rulebook, system):
+
+        '''
+        This section defines the type of keys used. ESM requires 4 values, while the other systems require just one key.
+        In addition, it clusters the IDs according to the defined 'Action' from rulebooks.
+        ESM Note: To apply these changes, column 'SiteCode' and 'VisitCode' must already exist in the data!!
+        ESM Note: "participant_identifier" will be not used as a primary KEY since there are some missing values.
+        '''
+
+        alternative_systems = ['maganamed', 'dmmh', 'redcap']
 
         self.changes_df.copy()
 
@@ -71,17 +85,16 @@ class DataCleaning:
             correct_participant_identifier = row.get('correct_participant_identifier')
             action = str(row['action']).strip()
 
-            # This section defines the type of keys, ESM requires 4 values, while Magana just one key.
-            # Note: To apply these changes, column SiteCode and VisitCode must already exist in the data.
-            # In addition, "participant_identifier" will be not used since there are some missing values.
             if "esm" in system:
                 participant_number = row['participant_number']
                 visit_code = row['VisitCode']
                 site_code = row['SiteCode']
                 if participant_identifier:
                     key = (participant_identifier, participant_number, visit_code, site_code)
+                else:
+                    key = (participant_number, visit_code, site_code)  # TODO: Verify
 
-            elif "maganamed" in system:
+            elif any(value in system for value in alternative_systems):
                 key = participant_identifier
             else:
                 key = None
@@ -128,10 +141,13 @@ class DataCleaning:
                 #         self.merge_ids[part_number.strip()] = correct_participant_identifier
                 #         print('extract_participant_number_to_merge', part_number, correct_participant_identifier)
 
-        print("to delete:", self.delete_ids, "\nto update: ", self.update_ids, "\nto add: ", self.add_ids,
-              "\nto merge: ", self.merge_ids)
+        print("\nIDs to delete:", self.delete_ids,
+              "\nIDS to update: ", self.update_ids,
+              "\nIDs to add: ", self.add_ids,
+              "\nIDs to merge: ", self.merge_ids
+              )
 
-    # Step 2. Apply changes from rulebook
+    # Apply changes from rulebook
     def _apply_changes_from_rulebook(self, current_df, participant_identifier, participant_number, filename, system):
         current_immerse_df = current_df.copy()
         current_immerse_df['correct_participant_id'] = current_immerse_df[participant_identifier]
@@ -180,8 +196,8 @@ class DataCleaning:
         #
         # Case 4: Update IDS
         if self.update_ids:
+            print("Current IDs to update : ", self.update_ids)
             if "movisens_esm" in system:
-                print("IDs to update : ", self.update_ids)
 
                 normalize_ids = {
                     tuple(str(x).strip() for x in k): value
@@ -198,10 +214,15 @@ class DataCleaning:
                     return normalize_ids.get(key, row.get('correct_participant_id'))
                 current_immerse_df['correct_participant_id'] = current_immerse_df.apply(lookup_row, axis=1)
 
-            # Maganamed
-            # current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
-            #     lambda row: self.update_ids.get((str(row[participant_identifier]), row[participant_number]),
-            #                                     row['correct_participant_id']), axis=1)
+            elif "maganamed" in system:
+                current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
+                    lambda row: self.update_ids.get((str(row[participant_identifier]), row[participant_number]),
+                                                    row['correct_participant_id']), axis=1)
+
+            else:
+                current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
+                    lambda row: self.update_ids.get((str(row[participant_identifier])),
+                                                    row['correct_participant_id']), axis=1)
 
             # Extended update include cases where values for "unit, "condition" or "randomize" values are missing.
             def apply_extended_update_id(row):
@@ -251,7 +272,7 @@ class DataCleaning:
         current_immerse_df[participant_identifier] = current_immerse_df.pop("correct_participant_id")
         return current_immerse_df
 
-    # Step 3. Complete ALL ids which 'unit', 'condition', 'randomize' are missing.
+    # Complete ALL ids which 'unit', 'condition', 'randomize' are missing.
     def add_unit_site_and_randomized_values(self, cleand_df, id_column):
         reference_df = get_columns_from_id_reference()
         ref_lookup = reference_df.set_index('correct_participant_identifier')
@@ -269,7 +290,7 @@ class DataCleaning:
         updated_df = cleand_df.apply(update_row, axis=1)
         return updated_df
 
-    # Step 4.  Changes to apply to ORIGINAL_IMMERSE_SOURCE
+    # ---> Step 3.  Changes to apply to ORIGINAL_IMMERSE_SOURCE
     def execute_corrections_to_original_tables(self, original_directory: str, immerse_system):
         immerse_clean_dfs = {}
         config = system_configs.get(immerse_system)
@@ -286,7 +307,7 @@ class DataCleaning:
             cleaned_folder.mkdir(parents=True, exist_ok=True)
 
             for filename, dataframe in filenames_and_dataframes:
-                print(f"Processing {filename}")
+                print(f"\nApplying changes to {filename}...")
                 try:
                     df = self._apply_changes_from_rulebook(
                         dataframe,
@@ -312,68 +333,64 @@ class DataCleaning:
                     immerse_clean_dfs[filename] = df
 
                 except Exception as e:
-                    print(f"Execute corrections function. Unexpected error in {filename}: {e}")
+                    print(f"Execute corrections function. Unexpected error in {filename}: {repr(e)}")
+                    traceback.print_exc()
 
             return immerse_clean_dfs
 
-    def issues_to_correct_from_esm_rulebook(self, esm_rulebook, fixes_path, filename):
+    # Identified changes from Issues & Rulebook.
+    def issues_to_correct_from_rulebook(self, rulebook, fixes_path, filename):
         '''
-        In this step, rename columns in esm_rulebook to guarantee columns name across different rulebooks.
-        In addition, detected issues are merged with the rulebook to create a merged filed with the specific changes
+        Detected issues are merged with the rulebook to create a merged filed with the specific changes
         that should be carried out.
         '''
 
         df_issues = self.df.copy()
-        merged_esm_ids_rulebook_df = esm_rulebook
+        merged_ids_rulebook_df = rulebook
+        merged_ids_rulebook_df.info()
 
-        merged_esm_ids_rulebook_df.rename(
-            columns={merged_esm_ids_rulebook_df.columns[0]: 'participant_identifier'}, inplace=True)
-        merged_esm_ids_rulebook_df.rename(
-            columns={merged_esm_ids_rulebook_df.columns[1]: 'participant_number'}, inplace=True)
-        merged_esm_ids_rulebook_df.rename(
-            columns={merged_esm_ids_rulebook_df.columns[5]: 'correct_participant_identifier'},
-            inplace=True)
+        merged_ids_rulebook_df.rename(
+            columns={merged_ids_rulebook_df.columns[0]: 'participant_identifier'}, inplace=True)
 
-        merged_esm_ids_rulebook_df['action'] = merged_esm_ids_rulebook_df['action'].astype(str)
+        # Movisens ESM has more than ONE 'key' to identify a participant ID.
+        if "movisens_esm" in filename:
+            merged_ids_rulebook_df.rename(
+                columns={merged_ids_rulebook_df.columns[1]: 'participant_number'}, inplace=True)
+            merged_ids_rulebook_df.rename(
+                columns={merged_ids_rulebook_df.columns[5]: 'correct_participant_identifier'},
+                inplace=True)
 
-        # Change float to int values
-        if 'VisitCode' in merged_esm_ids_rulebook_df.columns:
-            merged_esm_ids_rulebook_df['VisitCode'] = merged_esm_ids_rulebook_df['VisitCode'].apply(
-                lambda x: int(x) if isinstance(x, float) and not pd.isnull(x) else '')
+            # Change float to int values
+            if 'VisitCode' in merged_ids_rulebook_df.columns:
+                merged_ids_rulebook_df['VisitCode'] = merged_ids_rulebook_df['VisitCode'].apply(
+                    lambda x: int(x) if isinstance(x, float) and not pd.isnull(x) else '')
 
-        # # Change float to int values
-        if 'SiteCode' in merged_esm_ids_rulebook_df.columns:
-            merged_esm_ids_rulebook_df['SiteCode'] = merged_esm_ids_rulebook_df['SiteCode'].apply(
-                lambda x: int(x) if isinstance(x, float) and not pd.isnull(x) else x)
+            # # Change float to int values
+            if 'SiteCode' in merged_ids_rulebook_df.columns:
+                merged_ids_rulebook_df['SiteCode'] = merged_ids_rulebook_df['SiteCode'].apply(
+                    lambda x: int(x) if isinstance(x, float) and not pd.isnull(x) else x)
 
         # Option 1: Use a copy of the rulebook with the new column naming convention.
-        updated_rulebook_df = merged_esm_ids_rulebook_df.copy()
+        updated_rulebook_df = merged_ids_rulebook_df.copy()
 
         # Option 2: Merging issues with rulebook to define and export changes.csv
         df_issues['participant_identifier'] = df_issues['participant_identifier']
-        merged_esm_ids_rulebook_df['participant_identifier'] = merged_esm_ids_rulebook_df[
+        merged_ids_rulebook_df['participant_identifier'] = merged_ids_rulebook_df[
             'participant_identifier'].astype(str)
-        self.changes_df = pd.merge(df_issues, merged_esm_ids_rulebook_df, on='participant_identifier', how='inner')
-        self.changes_df.to_csv(os.path.join(fixes_path, f'test_updated_changes_{filename}'), index=False)
 
-        updated_rulebook_df.to_csv(os.path.join(fixes_path, f'test2_updated_rulebook.csv'), index=False)
-        return
+        self.changes_df = pd.merge(df_issues, merged_ids_rulebook_df, on='participant_identifier', how='inner')
+        self.changes_df.to_csv(os.path.join(fixes_path, f'identified_id_issues_and_changes_{filename}'), index=False)
+        updated_rulebook_df.to_csv(os.path.join(fixes_path, f'tailored_rulebook_{filename}.csv'), index=False)
+        return self.changes_df
 
-    # ---> Step 1 ESM
-    def prepare_ids_correction_from_esm(self, esm_rulebook, changes_path, filename):
+    # ---> Step 1: Identify and prepare IDs which must be corrected.
+    def prepare_ids_correction(self, rulebook, changes_path, filename):
         '''
           The following method requires 2 input sources to clean ids:
-          - esm_rulebook: Contains all ESM ids and their correct id (here adds more ids).
-          - changes_path: Contains only those ids which were found in original data.
+          - rulebook: Contains all participant ids and their corrected id per system.
+          - changes_path: Contains only those ids which were identified with any issue in original dataset.
         '''
 
         print(f"\n\033[32mStarting cleaning process from '{filename}' \033[0m\n")
-
-        if "movisens_esm" in filename:
-            new_esm_rulebook = self.issues_to_correct_from_esm_rulebook(esm_rulebook, changes_path, filename)
-            return new_esm_rulebook
-        # self.execute_corrections_to_original_tables(original_source_path, esm_rulebook)
-        # self.execute_corrections_to_original_tables(original_source_path)
-
-        # self.changes_df = self.ids_correction_by_regex(changes_path, filename)
-        # print(self.clean_df)
+        merged_issues_with_rulebook = self.issues_to_correct_from_rulebook(rulebook, changes_path, filename)
+        return merged_issues_with_rulebook

@@ -59,14 +59,18 @@ def read_all_dataframes(original_directory, immerse_system):
     if csv_files:
         for csv in csv_files:
             separator = detect_separator(csv)  # Verify
-            filenames.append(csv.name)
-            print("CSV file:", csv.name)
-            df = pd.read_csv(csv, sep=separator, low_memory=False)
-            dataframes.append(df)
+            try:
+                df = pd.read_csv(csv, sep=separator)
+                print(f"✓ Loaded {csv.name} with {df.shape[0]} rows and {df.shape[1]} columns.")
+                filenames.append(csv.name)
+                dataframes.append(df)
+            except pd.errors.ParserError as e:
+                print(f"✗ ParserError in {csv.name}: {e}")
+                continue
 
     elif excel_files:
         for excel in excel_files:
-            if "movisens_esm" in immerse_system and excel.name in files_to_exclude:
+            if "movisens_esm" in immerse_system and excel.name in esm_files_to_exclude:
                 continue
             filenames.append(excel.name)
             df = pd.read_excel(excel)

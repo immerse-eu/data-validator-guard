@@ -21,14 +21,14 @@ FIXES_PATH = load_config_file('reports', 'fixes')
 
 IDS_REFERENCE_PATH = load_config_file('auxiliarFiles', 'ids_reference')  # RedCap IDs from Anita
 IDS_TO_VERIFY_PATH = load_config_file('auxiliarFiles', 'ids_to_verify')  # Extracted IDs only from original files.
+ID_CLEANING_IMMERSE_PATH = load_config_file('updated_source',
+                                            'immerse_clean')  # Here are stored a copy of sources which are changing
 
 RULEBOOK_IDS_MAGANAMED_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_maganamed')
 RULEBOOK_IDS_MOVISENS_ESM_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_esm')
-RULEBOOK_IDS_MOVISENS_SENSING_PATH = load_config_file('auxiliarFiles', 'ids_reference_esm')  # TODO: Create file
-RULEBOOK_IDS_REDCAP_PATH = load_config_file('auxiliarFiles', '')  #TODO: Update
+# RULEBOOK_IDS_MOVISENS_SENSING_PATH = load_config_file('auxiliarFiles', '')  # TODO: Pending
+RULEBOOK_IDS_REDCAP_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_redcap_data_request')  # Rulebook tailored according DataRequest31
 RULEBOOK_IDS_DMMH_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_dmmh')
-ID_CLEANING_IMMERSE_PATH = load_config_file('updated_source',
-                                            'immerse_clean')  # Here are stored a copy of sources which are changing
 
 
 # General initial rule: ID validation
@@ -48,7 +48,7 @@ def general_validation_ids(df_control, rulebook, df_to_validate, file):
         execute_id_corrections_maganamed(ID_CLEANING_IMMERSE_PATH, RULEBOOK_IDS_MAGANAMED_PATH)
 
     elif "movisens_esm" in file:
-        updated_rulebook = general_id_cleaning.prepare_ids_correction_from_esm(rulebook, CHANGES_PATH, file)
+        updated_rulebook = general_id_cleaning.prepare_ids_correction(rulebook, CHANGES_PATH, file)
         general_id_cleaning.changes_to_apply_when_using_rulebook(updated_rulebook, 'movisens_esm')
         general_id_cleaning.execute_corrections_to_original_tables(ID_CLEANING_IMMERSE_PATH, 'movisens_esm')
 
@@ -58,18 +58,18 @@ def general_validation_ids(df_control, rulebook, df_to_validate, file):
 
     elif "dmmh" in file:
         print("Cleaning DMMH")
-        general_id_cleaning.prepare_ids_corrections(rulebook, CHANGES_PATH, file)
+        general_id_cleaning.prepare_ids_correction(rulebook, CHANGES_PATH, file)
         general_id_cleaning.changes_to_apply_when_using_rulebook(rulebook, 'dmmh')  # to verify
         general_id_cleaning.execute_corrections_to_original_tables(ID_CLEANING_IMMERSE_PATH, 'dmmh')
 
     elif "redcap" in file:
         print("Cleaning Redcap IDS...")
-        general_id_cleaning.prepare_ids_corrections(rulebook, CHANGES_PATH, file)
+        general_id_cleaning.prepare_ids_correction(rulebook, CHANGES_PATH, file)
         general_id_cleaning.changes_to_apply_when_using_rulebook(rulebook, 'redcap')  # to verify
         general_id_cleaning.execute_corrections_to_original_tables(ID_CLEANING_IMMERSE_PATH, 'redcap')
 
     else:
-        print("IMMERSE system not recognised from 'dmmh', 'maganamed', 'movisens_esm', and 'movisens_sensing' ")
+        print("IMMERSE system not recognised in 'dmmh', 'maganamed', 'movisens_esm', 'movisens_sensing', or 'redcap' ")
 
 
 # Function to run ID validation from CSV/EXCEL files instead of SQL tables
@@ -114,16 +114,15 @@ def execute_immerse_id_validation():
             print("Movisens_ESM", filename)
             run_id_validation_from_df(IDS_REFERENCE_PATH, RULEBOOK_IDS_MOVISENS_ESM_PATH, IDS_TO_VERIFY_PATH, filename)
 
-        elif filename.startswith("extracted") and "movisens_sensing" in filename:
-            print("Movisens_Sensing", filename)
-            run_id_validation_from_df(IDS_REFERENCE_PATH, RULEBOOK_IDS_MOVISENS_SENSING_PATH, IDS_TO_VERIFY_PATH, filename)   # TODO
+        elif filename.startswith("extracted") and "movisens_sensing" in filename:  # TODO
+            continue
 
         elif filename.startswith("extracted") and "dmmh" in filename:  # TODO
-            print("TODO: Create a Rulebook for DMMH IDS!")
+            continue
 
-        elif "redcap" in filename:
+        elif filename.startswith("extracted") and "redcap" in filename:
+            print("REDCap data request.", filename)
             run_id_validation_from_df(IDS_REFERENCE_PATH, RULEBOOK_IDS_REDCAP_PATH, IDS_TO_VERIFY_PATH, filename)
-
 
 
 def main():
