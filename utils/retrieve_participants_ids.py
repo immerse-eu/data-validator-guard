@@ -61,21 +61,21 @@ def read_all_dataframes(original_directory, immerse_system):
             separator = detect_separator(csv)  # Verify
             filenames.append(csv.name)
             print("CSV file:", csv.name)
-            df = pd.read_csv(csv, sep=separator)
+            df = pd.read_csv(csv, sep=separator, low_memory=False)
             dataframes.append(df)
 
     elif excel_files:
         for excel in excel_files:
-            filenames.append(excel.name)
-            if excel.name in esm_files_to_exclude:
+            if "movisens_esm" in immerse_system and excel.name in files_to_exclude:
                 continue
-            print("Excel file:", excel.name)
+            filenames.append(excel.name)
             df = pd.read_excel(excel)
-            dataframes.append(df)
+            if isinstance(df, pd.DataFrame):
+                dataframes.append(df)
     else:
         pass
 
-    return dataframes
+    return dataframes, filenames
 
 
 def read_db_catalogue(filepath, source):
@@ -97,18 +97,27 @@ def export_tricky_ids(df):
     unique_ids = set()
 
     if 'participant_id' in df.columns:
-        # print("participant_id type")
+        print("participant_id type")
         ids_df = df['participant_id']
         unique = ids_df.drop_duplicates().dropna()
         unique_ids.update(unique)
 
+        '''
+        # Extended id collection from Movisens ESM. TODO: Uncomment when necessary.
+        # Get the first 5 columns (participant id., number, country, visit and site code).       
+        '''
+        # unique = df.iloc[:, :5].drop_duplicates()
+        # print("unique ids: ", unique, len(unique))
+        # unique_ids.update(unique.values.flatten())
+        # return {tuple(row) for row in unique.itertuples(index=False)}
+
     elif 'study_id' in df.columns:
-        # print("study_id type")
+        print("study_id type")
         ids_df = df['study_id']
         unique_ids.update(ids_df.dropna().unique())
 
     elif 'id' in df.columns:
-        # print("id type")
+        print("id type")
         ids_df = df[['Participant', 'id']]
         unique = ids_df.drop_duplicates()
         unique_ids.update(set(zip(unique['Participant'], unique['id'])))
@@ -116,6 +125,10 @@ def export_tricky_ids(df):
         # ids_df = df[['Participant', 'patient_id', 'id']]
         # unique = ids_df.drop_duplicates()
         # unique_ids.update(set(zip(unique['Participant'], unique['patient_id'], unique['id'])))
+    elif 'Participant' in df.columns:
+        ids_df = df['Participant']
+        unique_ids.update(ids_df.dropna().unique())
+
     else:
         print("No participant id recognised")
 
@@ -124,6 +137,8 @@ def export_tricky_ids(df):
 
 def get_unique_participant_identifier_per_system(system, source_type):
     unique_participant_identifiers = set()
+
+    print(f'Getting participant ids from {system}...')
     if source_type == 'db':
         filtered_tablename_df = read_db_catalogue(DB_CATALOGUE_PATH, system)
         for tablename in filtered_tablename_df:
@@ -135,18 +150,23 @@ def get_unique_participant_identifier_per_system(system, source_type):
                     unique_participant_identifiers.update(participant_identifiers)
 
     if source_type == 'files':
-        dataframes = read_all_dataframes(original_directory=IMMERSE_CLEANING_SOURCE, immerse_system=system)
+        dataframes, filenames = read_all_dataframes(original_directory=IMMERSE_CLEANING_SOURCE, immerse_system=system)
         for df in dataframes:
             unique_identifiers = export_tricky_ids(df)
             unique_participant_identifiers.update(unique_identifiers)
 
     print("Unique participant identifiers per system: ", len(unique_participant_identifiers))
-    unique_participants_df = pd.DataFrame(unique_participant_identifiers)
-    output_filename = f'new_unique_identifiers_per_participant_from_{system}.csv'
+    columns = ['participant_identifier', 'participant_number', 'Country', 'VisitCode', 'SiteCode']  # MovisensESM only
+    if columns in unique_participant_identifiers:
+        rows = list(unique_participant_identifiers)   # TODO: Verify functionally. if not: rollback to last commit.
+        unique_participants_df = pd.DataFrame(rows, columns=columns)
+    else:
+        unique_participants_df = pd.DataFrame({f'participant_identifier': sorted(unique_participant_identifiers)})
+    output_filename = f'extracted_ids_{system}.xlsx'
     output_file = os.path.join(os.path.dirname(DB_CATALOGUE_PATH), output_filename)
     unique_participants_df.to_csv(output_file, sep=';', index=False)
     print("File exported in:", output_file)
 
 # TODO: Uncomment when requested.
 # For source type, there are two options: "database" or "files"
-# get_unique_participant_identifier_per_system(system='movisens_esm', source_type='files')
+# get_unique_participant_identifier_per_system(system='dmmh', source_type='files')

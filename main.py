@@ -48,7 +48,7 @@ def general_validation_ids(df_control, rulebook, df_to_validate, file):
         execute_id_corrections_maganamed(ID_CLEANING_IMMERSE_PATH, RULEBOOK_IDS_MAGANAMED_PATH)
 
     elif "movisens_esm" in file:
-        updated_rulebook = general_id_cleaning.prepare_ids_corrections(rulebook, CHANGES_PATH, file)
+        updated_rulebook = general_id_cleaning.prepare_ids_correction_from_esm(rulebook, CHANGES_PATH, file)
         general_id_cleaning.changes_to_apply_when_using_rulebook(updated_rulebook, 'movisens_esm')
         general_id_cleaning.execute_corrections_to_original_tables(ID_CLEANING_IMMERSE_PATH, 'movisens_esm')
 
@@ -131,14 +131,14 @@ def main():
     # # --- Rule 0: ID validation.
     execute_immerse_id_validation()
 
-    # # # --- MAGANAMED:
-    # # Run all rules defined in IMMERSE DVP-V7.
-    # run_validation_maganamed()
-    # cleaning_db(NEW_DB_PATH, system='maganamed')
-    #
-    # # # --- MOVISENSXS
-    # # Run all rules for Movisens-ESM & Movisens-Sensing defined in IMMERSE DVP-V7.
-    # run_movisensxs_validation()
+    # # --- MAGANAMED:
+    # Run all rules defined in IMMERSE DVP-V7.
+    run_validation_maganamed()
+    cleaning_db(NEW_DB_PATH, system='maganamed')
+
+    # # --- MOVISENSXS
+    # Run all rules for Movisens-ESM & Movisens-Sensing defined in IMMERSE DVP-V7.
+    run_movisensxs_validation()
 
 
 if __name__ == "__main__":
