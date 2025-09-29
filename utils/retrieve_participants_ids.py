@@ -8,8 +8,9 @@ from config.config_loader import load_config_file
 NEW_DB_PATH = load_config_file('researchDB', 'cleaned_db')
 DB_CATALOGUE_PATH = load_config_file('researchDB', 'db_catalogue')
 IMMERSE_CLEANING_SOURCE = load_config_file('updated_source', 'immerse_clean')
-files_to_exclude = ["codebook.xlsx", "Fidelity_BE.xlsx", "Fidelity_c_UK.xlsx", "Fidelity_GE.xlsx",
-                    "Fidelity_SK.xlsx", "Fidelity_UK.xlsx", "IMMERSE_Fidelity_SK_Kosice.xlsx", "Sensing.xlsx"]
+
+esm_files_to_exclude = ["codebook.xlsx", "Fidelity_BE.xlsx", "Fidelity_c_UK.xlsx", "Fidelity_GE.xlsx",
+                        "Fidelity_SK.xlsx", "Fidelity_UK.xlsx", "IMMERSE_Fidelity_SK_Kosice.xlsx", "Sensing.xlsx"]
 
 
 def detect_separator(filepath):
@@ -66,7 +67,7 @@ def read_all_dataframes(original_directory, immerse_system):
     elif excel_files:
         for excel in excel_files:
             filenames.append(excel.name)
-            if excel.name in files_to_exclude:
+            if excel.name in esm_files_to_exclude:
                 continue
             print("Excel file:", excel.name)
             df = pd.read_excel(excel)
@@ -111,7 +112,7 @@ def export_tricky_ids(df):
         ids_df = df[['Participant', 'id']]
         unique = ids_df.drop_duplicates()
         unique_ids.update(set(zip(unique['Participant'], unique['id'])))
-        # ---> Uncomment just for fidelity files!!
+        # TODO: ---> Uncomment just for fidelity files!!
         # ids_df = df[['Participant', 'patient_id', 'id']]
         # unique = ids_df.drop_duplicates()
         # unique_ids.update(set(zip(unique['Participant'], unique['patient_id'], unique['id'])))
@@ -146,7 +147,6 @@ def get_unique_participant_identifier_per_system(system, source_type):
     unique_participants_df.to_csv(output_file, sep=';', index=False)
     print("File exported in:", output_file)
 
-
+# TODO: Uncomment when requested.
 # For source type, there are two options: "database" or "files"
-get_unique_participant_identifier_per_system(system='movisens_esm', source_type='files')
-
+# get_unique_participant_identifier_per_system(system='movisens_esm', source_type='files')
