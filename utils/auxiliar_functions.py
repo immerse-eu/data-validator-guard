@@ -1,5 +1,6 @@
 import csv
 import os
+import chardet
 import pandas as pd
 from config.config_loader import load_config_file
 from validation.seach_values import execute_search
@@ -93,8 +94,8 @@ def create_codebook(directory, system):
 def merge_dataframes(f1, f2, system):
     print("Merging dfs..")
     print(f1, "\n", f2)
-    df1 = pd.read_csv(f1, sep=",") if f1.endswith(".csv") else pd.read_excel(f1, engine='openpyxl')
-    df2 = pd.read_csv(f1, sep=",") if f1.endswith(".csv") else pd.read_excel(f1, engine='openpyxl')
+    df1 = pd.read_csv(f1, sep=";") if f1.endswith(".csv") else pd.read_excel(f1, engine='openpyxl')
+    df2 = pd.read_csv(f2, sep=";") if f2.endswith(".csv") else pd.read_excel(f2, engine='openpyxl')
 
     df1.info()
     df2.info()
@@ -111,5 +112,35 @@ def merge_dataframes(f1, f2, system):
     merged_df.to_excel(filename, index=False)
 
 
+def concatenate_dataframes(directory):
+    dfs = []
+
+    for file in os.listdir(directory):
+        if file.startswith("Logins") and (file.endswith(".csv") or file.endswith(".xlsx")):
+            filepath = os.path.join(directory, file)
+            print(f"Reading {file}...")
+
+            if file.endswith(".csv"):
+                with open(filepath, "rb") as f:
+                    rawdata = f.read(50000)
+                    result = chardet.detect(rawdata)
+                    encoding = result['encoding']
+
+                df = pd.read_csv(filepath, sep=";", encoding=encoding)
+            else:
+                df = pd.read_excel(filepath, engine='openpyxl')
+
+            # Special case for data release. TODO: comment when unnecessary.
+            df.rename(columns={col: col.replace('Column1.', '') for col in df.columns if col.startswith('Column1.')},
+                      inplace=True)
+
+            df.info()
+            dfs.append(df)
+
+    export_dfs = pd.concat(dfs, ignore_index=True)
+    export_dfs.to_excel(os.path.join(directory, 'merged_logins.xlsx'), index=False)
+
+
 # create_codebook(ID_CLEAN_IMMERSE_PATH, 'maganamed')
-# merge_dataframes(f1_path, f2_path, "dmmh")
+# merge_dataframes(f1_path, f2_path, "other")
+# concatenate_dataframes(directory)
