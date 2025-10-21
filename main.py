@@ -117,8 +117,8 @@ def execute_immerse_id_validation():
         elif filename.startswith("extracted") and "movisens_sensing" in filename:  # TODO
             continue
 
-        elif filename.startswith("extracted") and "dmmh" in filename:  # TODO
-            continue
+        elif filename.startswith("extracted") and "dmmh" in filename:
+            run_id_validation_from_df(IDS_REFERENCE_PATH, RULEBOOK_IDS_DMMH_PATH, IDS_TO_VERIFY_PATH, filename)
 
         elif filename.startswith("extracted") and "redcap" in filename:
             print("REDCap data request.", filename)
