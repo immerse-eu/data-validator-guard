@@ -141,6 +141,20 @@ def concatenate_dataframes(directory):
     export_dfs.to_excel(os.path.join(directory, 'merged_logins.xlsx'), index=False)
 
 
+def get_unique_values(filepath):
+    # Function used for retrieve Name, Surname from specific files from cloud.
+    if os.path.exists(filepath):
+
+        df = pd.read_excel(filepath) if filepath.endswith(".xlsx") else pd.read_csv(filepath, sep=";")
+
+        missing_ids = df[df['clinician_idenfitier'].isna()]
+        unique_values = missing_ids[['firstName', 'lastName']].drop_duplicates()
+        unique_values = unique_values.sort_values(by=['firstName', 'lastName'], ascending=True)
+        unique_values.to_excel('unique_values.xlsx', index=False)
+
+
 # create_codebook(ID_CLEAN_IMMERSE_PATH, 'maganamed')
 # merge_dataframes(f1_path, f2_path, "other")
 # concatenate_dataframes(directory)
+# get_unique_values()
+
