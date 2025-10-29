@@ -1,3 +1,4 @@
+import os
 import re
 import pandas as pd
 
@@ -55,9 +56,10 @@ class MovisensxsValidation:
         expected_visit_code = self.get_expected_visitcode(filename)
 
         for _, row in self.movisensxs_df.iterrows():
-            issues = {"participant_identifier": row.iloc[0]}
+            participant_identifier = row.iloc[0]
             extracted_site_value = self.extract_site_from_id(row.iloc[0])
             expected_site_code = self.get_expected_sitecode(extracted_site_value)
+            issues = {"participant_identifier": participant_identifier}
 
             # --- VisitCode ---
             visit_code = row['VisitCode']
@@ -68,21 +70,22 @@ class MovisensxsValidation:
             # --- SiteCode ---
             site_code = row['SiteCode']
             if pd.isna(site_code) or expected_site_code != site_code:
-                # print("pid", row["participant_identifier"], "extracted_site_value: ", extracted_site_value,
-                # "expected_site_code: ", expected_site_code, "siteCode: ", site_code)
                 issues['SiteCode_expected'] = expected_site_code
                 issues['SiteCode_actual'] = site_code
 
-        if len(issues) > 1:
-            issues['filename'] = filename
-            self.movisensxs_issues.append(issues)
+            if len(issues) > 1:
+                issues['filename'] = filename
+                self.movisensxs_issues.append(issues)
 
-    def generate_issues_report(self, filename):
-        if not self.movisensxs_issues:
-            print("✔ All validations passed. No issues found!")
+    def passed_validation(self, filename, issues_path):
+        if len(self.movisensxs_issues) == 0:
+            print(f"\n ✔  | Validation successfully passed in {filename}!")
+            return True
         else:
-            print(f"❌ Issues found. Report saved")
-            df_report = pd.DataFrame(self.movisensxs_issues)
-            print(df_report)
-            return df_report.to_csv(f"{filename}_issues.csv", sep=";", index=False)
-            # return self.movisensxs_issues
+            print(f"❌ Issues found. Report saved in {issues_path}. ")
+            return self.generate_issues_report(filename, issues_path)
+
+    def generate_issues_report(self, filename, issues_path):
+        df_report = pd.DataFrame(self.movisensxs_issues).drop_duplicates()
+        filename = f"movisens_esm_{filename}_issues.csv"
+        df_report.to_csv(os.path.join(issues_path, filename), sep=";", index=False)

@@ -27,8 +27,8 @@ def movisensxs_rule_fourteen(df, table_name):
     print(f"\n\033[95m Validating '{table_name}' for Visit and Country selection:\033[0m\n")
     rules_movisensxs_validation = MovisensxsValidation(df)
     rules_movisensxs_validation.validate_visit_and_site_assignation(table_name)
-    report = rules_movisensxs_validation.generate_issues_report(table_name)
-    return report
+    result_validation = rules_movisensxs_validation.passed_validation(table_name, ISSUES_PATH)
+    return result_validation
 
 
 # Rule 16 from DVP: Match participant IDs with Maganamed IDs.
@@ -42,20 +42,15 @@ def movisensxs_rule_sixteen_and_seventeen(df, table_name):
 
 
 def run_movisensxs_validation():
-    # Movisens ESM
-    movisensxs_issues = []
+    # --- Movisens_ESM ---
     dfs, filenames = read_all_dataframes(IMMERSE_CLEANING_SOURCE, 'movisens_esm')
     for df, filename in zip(dfs, filenames):
-        movisens_esm_issues = movisensxs_rule_fourteen(df, filename)
-        movisensxs_issues.append(movisens_esm_issues)
+        is_validation_approved = movisensxs_rule_fourteen(df, filename)
+        if not is_validation_approved:
+            print("Changes mus be applied in", filename, "\n")
 
-    # TODO: verify
-    if movisensxs_issues:
-        report = pd.DataFrame(movisensxs_issues)
-        report.to_csv("movisensxs_issues.csv", index=False)
-
-    # Movisens ESM: Fidelity files
-    # for filename in fidelity_files:
-    #     df = read_dataframe(IMMERSE_CLEANING_SOURCE, filename, 'movisens_esm')
-    #     print("Fidelity files", df.info())
-    #     movisensxs_rule_sixteen_and_seventeen(df, filename)
+    # --- Movisens_Fidelity ---
+    dfs, filenames = read_all_dataframes(IMMERSE_CLEANING_SOURCE, 'movisens_esm')
+    print("Fidelity files")
+    for df, filename in zip(dfs, filenames):
+        movisensxs_rule_sixteen_and_seventeen(df, filename)
