@@ -80,6 +80,8 @@ class DataCleaning:
                 site_code = row['SiteCode']
                 if participant_identifier:
                     key = (participant_identifier, participant_number, visit_code, site_code)
+                if not site_code and participant_identifier:
+                    key = (participant_number, visit_code)
 
             elif "maganamed" in system:
                 key = participant_identifier
@@ -128,8 +130,10 @@ class DataCleaning:
                 #         self.merge_ids[part_number.strip()] = correct_participant_identifier
                 #         print('extract_participant_number_to_merge', part_number, correct_participant_identifier)
 
-        print("to delete:", self.delete_ids, "\nto update: ", self.update_ids, "\nto add: ", self.add_ids,
-              "\nto merge: ", self.merge_ids)
+        print(f"{len(self.delete_ids)} ids to delete:", self.delete_ids,
+              f"\n{len(self.update_ids)} ids to update: ", self.update_ids,
+              f"\n{len(self.add_ids)} ids to add: ", self.add_ids,
+              f"\n{len(self.merge_ids)} ids to merge: ", self.merge_ids)
 
     # Step 2. Apply changes from rulebook
     def _apply_changes_from_rulebook(self, current_df, participant_identifier, participant_number, filename, system):
@@ -165,14 +169,22 @@ class DataCleaning:
         if self.add_ids:
             print("IDs to Add: ", self.add_ids)
             if "movisens_esm" in system:
-                current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
-                    lambda row: self.add_ids.get((
-                        row[participant_identifier],
-                        row[participant_number],
-                        row['VisitCode'],
-                        row['SiteCode']),
-                        row.get('correct_participant_id', None))
-                    , axis=1)
+
+                normalize_ids = {
+                    tuple(str(x).strip() for x in k): value
+                    for k, value in self.add_ids.items()
+                }
+
+                def lookup_row(row):
+                    key = (
+                        str(row[participant_identifier]).strip(),
+                        str(row[participant_number]).strip(),
+                        str(row['VisitCode']).strip(),
+                        str(row['SiteCode']).strip()
+                    )
+                    return normalize_ids.get(key, row.get('correct_participant_id'))
+
+                current_immerse_df['correct_participant_id'] = current_immerse_df.apply(lookup_row, axis=1)
             # current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
             #     lambda row: self.add_ids.get(row[participant_number], row['correct_participant_id'])
             #     if pd.isna(row['correct_participant_id']) or str(row['correct_participant_id']).strip() == ""
@@ -286,7 +298,7 @@ class DataCleaning:
             cleaned_folder.mkdir(parents=True, exist_ok=True)
 
             for filename, dataframe in filenames_and_dataframes:
-                print(f"Processing {filename}")
+                print(f"\nProcessing {filename}...")
                 try:
                     df = self._apply_changes_from_rulebook(
                         dataframe,
@@ -354,10 +366,10 @@ class DataCleaning:
         merged_esm_ids_rulebook_df['participant_identifier'] = merged_esm_ids_rulebook_df[
             'participant_identifier'].astype(str)
         self.changes_df = pd.merge(df_issues, merged_esm_ids_rulebook_df, on='participant_identifier', how='inner')
-        self.changes_df.to_csv(os.path.join(fixes_path, f'test_updated_changes_{filename}'), index=False)
+        self.changes_df.to_csv(os.path.join(fixes_path, f'identified_id_issues_and_changes_extracted_ids_{filename}'), index=False)
 
-        updated_rulebook_df.to_csv(os.path.join(fixes_path, f'test2_updated_rulebook.csv'), index=False)
-        return
+        updated_rulebook_df.to_csv(os.path.join(fixes_path, f'updated_rulebook.csv'), index=False)
+        return updated_rulebook_df
 
     # ---> Step 1 ESM
     def prepare_ids_correction_from_esm(self, esm_rulebook, changes_path, filename):
@@ -368,12 +380,7 @@ class DataCleaning:
         '''
 
         print(f"\n\033[32mStarting cleaning process from '{filename}' \033[0m\n")
-
         if "movisens_esm" in filename:
             new_esm_rulebook = self.issues_to_correct_from_esm_rulebook(esm_rulebook, changes_path, filename)
             return new_esm_rulebook
-        # self.execute_corrections_to_original_tables(original_source_path, esm_rulebook)
-        # self.execute_corrections_to_original_tables(original_source_path)
 
-        # self.changes_df = self.ids_correction_by_regex(changes_path, filename)
-        # print(self.clean_df)
