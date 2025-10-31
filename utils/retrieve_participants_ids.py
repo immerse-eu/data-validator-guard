@@ -22,27 +22,6 @@ def detect_separator(filepath):
             return delimiter
 
 
-def read_dataframe(original_directory, file, immerse_system):
-    for root, dirs, files in os.walk(original_directory):
-        if immerse_system in dirs:
-            sub_folder_path = os.path.join(root, immerse_system)
-            for folder, _, files in os.walk(sub_folder_path):
-                # print("subfolder", sub_folder_path)
-                for filename in files:
-                    if filename.endswith(".xlsx") or filename.endswith(".csv"):
-                        filepath = os.path.join(folder, filename)
-                        separator = detect_separator(filepath)
-                        # print("Filepath", filepath)
-                        try:
-                            print("Current filename", filename)
-                            current_df = pd.read_excel(filepath, engine='openpyxl') if filename.endswith(".xlsx") \
-                                else pd.read_csv(filepath, sep=separator, encoding='utf-8', low_memory=False)
-                            return current_df
-
-                        except Exception as e:
-                            print(f"Unexpected error in  {filename}", e)
-
-
 def read_all_dataframes(original_directory, immerse_system):
     current_sub_directory = None
     filenames = []
@@ -60,7 +39,6 @@ def read_all_dataframes(original_directory, immerse_system):
         for csv in csv_files:
             separator = detect_separator(csv)  # Verify
             filenames.append(csv.name)
-            print("CSV file:", csv.name)
             df = pd.read_csv(csv, sep=separator, low_memory=False)
             dataframes.append(df)
 
@@ -96,9 +74,9 @@ def export_ids_per_table(df):
 def export_tricky_ids(df):
     unique_ids = set()
 
-    if 'participant_id' in df.columns:
-        print("participant_id type")
-        ids_df = df['participant_id']
+    if 'participant_identifier' in df.columns:  # Alternative: participant_id
+        print("participant_identifier type")
+        ids_df = df['participant_identifier']
         unique = ids_df.drop_duplicates().dropna()
         unique_ids.update(unique)
 
@@ -107,7 +85,7 @@ def export_tricky_ids(df):
         # Get the first 5 columns (participant id., number, country, visit and site code).       
         '''
         # unique = df.iloc[:, :5].drop_duplicates()
-        # print("unique ids: ", unique, len(unique))
+        # # print("unique ids: ", unique, len(unique))
         # unique_ids.update(unique.values.flatten())
         # return {tuple(row) for row in unique.itertuples(index=False)}
 
@@ -136,6 +114,8 @@ def export_tricky_ids(df):
 
 
 def get_unique_participant_identifier_per_system(system, source_type):
+    # For source type, there are two options: "database" or "files"
+
     unique_participant_identifiers = set()
 
     print(f'Getting participant ids from {system}...')
@@ -157,16 +137,14 @@ def get_unique_participant_identifier_per_system(system, source_type):
 
     print("Unique participant identifiers per system: ", len(unique_participant_identifiers))
     columns = ['participant_identifier', 'participant_number', 'Country', 'VisitCode', 'SiteCode']  # MovisensESM only
-    if columns in unique_participant_identifiers:
-        rows = list(unique_participant_identifiers)   # TODO: Verify functionally. if not: rollback to last commit.
+    if unique_participant_identifiers:
+        rows = list(unique_participant_identifiers)
         unique_participants_df = pd.DataFrame(rows, columns=columns)
     else:
         unique_participants_df = pd.DataFrame({f'participant_identifier': sorted(unique_participant_identifiers)})
-    output_filename = f'extracted_ids_{system}.xlsx'
+    output_filename = f'only_extracted_ids_{system}.xlsx'
     output_file = os.path.join(os.path.dirname(DB_CATALOGUE_PATH), output_filename)
     unique_participants_df.to_excel(output_file, index=False)
     print("File exported in:", output_file)
 
-
-# For source type, there are two options: "database" or "files"
-# get_unique_participant_identifier_per_system(system='dmmh', source_type='files')
+# get_unique_participant_identifier_per_system(system='movisens_esm', source_type='files')
