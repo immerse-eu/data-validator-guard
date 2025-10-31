@@ -26,8 +26,8 @@ RULEBOOK_IDS_MAGANAMED_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_ma
 RULEBOOK_IDS_MOVISENS_ESM_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_esm')
 # RULEBOOK_IDS_MOVISENS_SENSING_PATH = load_config_file('auxiliarFiles', 'ids_reference_esm')  TODO: Create file
 
-ID_CLEANING_IMMERSE_PATH = load_config_file('updated_source',
-                                            'immerse_clean')  # Here are stored a copy of sources which are changing
+ID_CLEANING_IMMERSE_PATH = load_config_file('updated_source', 'immerse_clean')  # Here is stored a copy of sources which are changing
+# PREPROCESSED_ESM_DATA_PATH = load_config_file('processed_source', 'movisens_esm')
 
 
 # General initial rule: ID validation
@@ -38,7 +38,7 @@ def general_validation_ids(df_control, rulebook, df_to_validate, file):
     general_validation.check_duplications_applying_normalisation('participant_identifier')
     general_validation.compare_ids_with_redcap_ids(df_control, id_column=0)
     general_validation.check_typos_in_ids(id_column=0)
-    df_report = general_validation.report(os.path.join(ISSUES_PATH, "ID_issues"), file)
+    df_report = general_validation.report(os.path.join(ISSUES_PATH, "issues_ids"), file)
 
     #  Cleaning process
     general_id_cleaning = DataCleaning(df_report)
@@ -64,27 +64,16 @@ def general_validation_ids(df_control, rulebook, df_to_validate, file):
 
 
 # Function to run ID validation from CSV/EXCEL files instead of SQL tables
-def run_id_validation_from_df(reference_all_ids_directory, rulebook, test_directory, filename):
-    if os.path.exists(reference_all_ids_directory):
-        print("REDCap IDs path:", reference_all_ids_directory)
-        df_control = pd.read_excel(reference_all_ids_directory)
+def run_id_validation_from_df(redcap_id_reference_path, rulebook, extracted_ids_df, extracted_ids_filename):
+    if os.path.exists(redcap_id_reference_path) and os.path.exists(rulebook):
+        print("Loading REDCap reference IDs path:", redcap_id_reference_path)
+        print("Loading rulebook path: ", rulebook)
+        print("Loading extracted IDs to validate:", extracted_ids_filename)
 
-    if os.path.exists(rulebook):
-        print("Loading rulebook from: ", rulebook)
-        rulebook_df = pd.read_csv(rulebook)
-        # rulebook_df = pd.read_excel(rulebook)  # TODO: ---> UNCOMMENT ONLY FOR ESM Rulebook!!
+        df_control = pd.read_excel(redcap_id_reference_path)
+        rulebook_df = pd.read_excel(rulebook) if rulebook.endswith('.xlsx') else pd.read_csv(rulebook, sep=';')
+        general_validation_ids(df_control, rulebook_df, extracted_ids_df, extracted_ids_filename)
 
-        for file in os.listdir(test_directory):
-            if file.startswith(filename):
-                if file.endswith(".csv"):
-                    csv_df = pd.read_csv(os.path.join(test_directory, file))  # File(s) to validate
-                    print(f"\n\033[34mFile to validate: '{file}' \033[0m\n")
-                    general_validation_ids(df_control, rulebook_df, csv_df, file)
-
-                # elif file.endswith(".xlsx"):
-                #     excel_df = pd.read_excel(os.path.join(test_directory, file))  # File(s) to validate
-                #     print(f"\n\033[34mFile to validate:'{file}' \033[0m\n")
-                #     general_validation_ids(df_control, rulebook_df, excel_df, file)
     else:
         print(f"\n\033[34mFilepath for rulebook not found!\033[0m\n")
         create_merged_esm_ids_rulebook()  # TODO: After the file is created, changes must be added manually!
@@ -99,12 +88,19 @@ def execute_immerse_id_validation():
     """
     for filename in os.listdir(IDS_TO_VERIFY_PATH):
         if filename.startswith("extracted") and "maganamed" in filename:
-            print("Maganamed", filename)
-            run_id_validation_from_df(IDS_REFERENCE_PATH, RULEBOOK_IDS_MAGANAMED_PATH, IDS_TO_VERIFY_PATH, filename)
+            continue
+            # print("Maganamed", filename)
+            # run_id_validation_from_df(IDS_REFERENCE_PATH, RULEBOOK_IDS_MAGANAMED_PATH, IDS_TO_VERIFY_PATH, filename)
 
         elif filename.startswith("extracted") and "movisens_esm" in filename:
-            print("Movisens_ESM", filename)
-            run_id_validation_from_df(IDS_REFERENCE_PATH, RULEBOOK_IDS_MOVISENS_ESM_PATH, IDS_TO_VERIFY_PATH, filename)
+            print(f"\n\033[34mMovisens_ESM\033[0m\n")
+            extracted_ids_df = pd.read_csv(os.path.join(IDS_TO_VERIFY_PATH, filename))
+            run_id_validation_from_df(
+                redcap_id_reference_path=IDS_REFERENCE_PATH,
+                rulebook=RULEBOOK_IDS_MOVISENS_ESM_PATH,
+                extracted_ids_df=extracted_ids_df,
+                extracted_ids_filename=filename
+            )
 
         elif filename.startswith("extracted") and "movisens_sensing" in filename:
             print("Movisens_Sensing", filename)
@@ -116,7 +112,7 @@ def execute_immerse_id_validation():
 
 def main():
 
-    # # --- Rule 0: ID validation.
+    # --- Rule 0: ID validation.
     execute_immerse_id_validation()
 
     # # --- MAGANAMED:
