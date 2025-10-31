@@ -9,8 +9,8 @@ NEW_DB_PATH = load_config_file('researchDB', 'cleaned_db')
 DB_CATALOGUE_PATH = load_config_file('researchDB', 'db_catalogue')
 IMMERSE_CLEANING_SOURCE = load_config_file('updated_source', 'immerse_clean')
 
-files_to_exclude = ["codebook.xlsx", "Fidelity_BE.xlsx", "Fidelity_c_UK.xlsx", "Fidelity_GE.xlsx",
-                    "Fidelity_SK.xlsx", "Fidelity_UK.xlsx", "IMMERSE_Fidelity_SK_Kosice.xlsx", "Sensing.xlsx"]
+esm_files_to_exclude = ["codebook.xlsx", "Fidelity_BE.xlsx", "Fidelity_c_UK.xlsx", "Fidelity_GE.xlsx",
+                        "Fidelity_SK.xlsx", "Fidelity_UK.xlsx", "IMMERSE_Fidelity_SK_Kosice.xlsx", "Sensing.xlsx"]
 
 
 def detect_separator(filepath):
@@ -39,6 +39,7 @@ def read_all_dataframes(original_directory, immerse_system):
         for csv in csv_files:
             separator = detect_separator(csv)  # Verify
             filenames.append(csv.name)
+            print("CSV file:", csv.name)
             df = pd.read_csv(csv, sep=separator, low_memory=False)
             dataframes.append(df)
 
@@ -85,7 +86,7 @@ def export_tricky_ids(df):
         # Get the first 5 columns (participant id., number, country, visit and site code).       
         '''
         # unique = df.iloc[:, :5].drop_duplicates()
-        # # print("unique ids: ", unique, len(unique))
+        # print("unique ids: ", unique, len(unique))
         # unique_ids.update(unique.values.flatten())
         # return {tuple(row) for row in unique.itertuples(index=False)}
 
@@ -142,9 +143,11 @@ def get_unique_participant_identifier_per_system(system, source_type):
         unique_participants_df = pd.DataFrame(rows, columns=columns)
     else:
         unique_participants_df = pd.DataFrame({f'participant_identifier': sorted(unique_participant_identifiers)})
-    output_filename = f'only_extracted_ids_{system}.xlsx'
+    output_filename = f'extracted_ids_{system}.xlsx'
     output_file = os.path.join(os.path.dirname(DB_CATALOGUE_PATH), output_filename)
     unique_participants_df.to_excel(output_file, index=False)
     print("File exported in:", output_file)
 
-# get_unique_participant_identifier_per_system(system='movisens_esm', source_type='files')
+# TODO: Uncomment when requested.
+# For source type, there are two options: "database" or "files"
+# get_unique_participant_identifier_per_system(system='dmmh', source_type='files')

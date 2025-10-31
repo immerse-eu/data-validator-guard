@@ -9,7 +9,7 @@ IMMERSE_GENERAL_REPOSITORY_PATH = load_config_file('immerse_general_repository',
 IMMERSE_ORIGINAL_SOURCE_PATH = load_config_file('original_source', 'immerse')
 ID_CLEAN_IMMERSE_PATH = load_config_file('updated_source', 'immerse_clean')
 
-files_to_exclude = ["codebook.xlsx", "Fidelity_BE.xlsx", "Fidelity_c_UK.xlsx", "Fidelity_GE.xlsx",
+esm_files_to_exclude = ["codebook.xlsx", "Fidelity_BE.xlsx", "Fidelity_c_UK.xlsx", "Fidelity_GE.xlsx",
                     "Fidelity_SK.xlsx", "Fidelity_UK.xlsx", "IMMERSE_Fidelity_SK_Kosice.xlsx", "Sensing.xlsx"]
 
 files_to_filter = [
@@ -31,7 +31,7 @@ def get_filenames_per_system(original_directory):
 
     for root, dirs, files in os.walk(original_directory):
         for file in files:
-            if file in files_to_exclude:
+            if file in esm_files_to_exclude:
                 continue
             if file.endswith(".xlsx") and file.startswith("_IMMERSE"):
                 old_path = os.path.join(root, file)
@@ -61,11 +61,11 @@ def export_clinicians_and_participants(directory):
         print(f"Exported {file}")
 
 
-def convert_file_to_csv(path, filename):
-    filepath = os.path.join(path, filename)
+def convert_file_to_csv(filepath):
+    filename = os.path.basename(filepath)
+    print(f"Converting {filename} to CSV")
     df = pd.read_excel(filepath)
     df.to_csv(filename.replace(".xlsx", ".csv"), sep=";", index=False)
-    print(f"Processing: {filename}")
 
 
 def create_codebook(directory, system):
