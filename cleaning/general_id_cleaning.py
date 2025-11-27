@@ -27,10 +27,10 @@ system_configs = {
         'column_id_number': 'participant_number',
         'folder': 'cleaned_ids_movisens_esm',
     },
-    'movisens_esm_fidelity': {
-        'column_id': 'participant_id',
-        'column_id_number': 'participant_movi_nr',
-        'folder': 'cleaned_ids_movisens_esm_fidelity',
+    'movisens_fidelity': {
+        'column_id': ['fidelity_idparticiant', 'time', 'patient_id', 'id', 'fidelity_t2_idparticiant', 'item_770'],
+        'column_id_number': 'Participant',
+        'folder': 'cleaned_ids_movisens_fidelity',
     },
     'movisens_sensing': {
         'column_id': 'study_id',
@@ -47,6 +47,13 @@ system_configs = {
         'column_id_number': None,
         'folder': 'cleaned_ids_redcap',
     },
+}
+
+rename_fidelity_columns_dict = {
+    'fidelity_idparticiant': 'fidelity_participant_identifier_T1',
+    'patient_id': 'reported_patient_identifier',
+    'id': 'rater_participant_identifier',
+    'fidelity_t2_idparticiant': 'fidelity_participant_identifier_T2'
 }
 
 
@@ -76,7 +83,7 @@ class DataCleaning:
         ESM Note: "participant_identifier" will be not used as a primary KEY since there are some missing values.
         '''
 
-        alternative_systems = ['maganamed', 'dmmh', 'redcap']
+        alternative_systems = ['maganamed', 'dmmh', 'redcap', 'movisens_fidelity']
 
         self.changes_df.copy()
 
@@ -106,7 +113,7 @@ class DataCleaning:
             if action.startswith('add') and key is not None:
                 self.add_ids[key] = correct_participant_identifier
 
-            if action.startswith('skip') and key is not None:
+            if action.startswith('skip') or action.startswith('check manually') and key is not None:
                 continue
 
             if action.startswith('use') and key is not None:  # TODO:Fix merging
@@ -149,7 +156,14 @@ class DataCleaning:
     # Apply changes from rulebook
     def _apply_changes_from_rulebook(self, current_df, participant_identifier, participant_number, filename, system):
         current_immerse_df = current_df.copy()
-        current_immerse_df['correct_participant_id'] = current_immerse_df[participant_identifier]
+
+        if 'movisens_fidelity' in system:
+            primary_identifier = participant_identifier
+            print("Primary identifier: ", primary_identifier)
+            if primary_identifier in current_df.columns:
+                current_immerse_df['correct_participant_id'] = current_immerse_df[primary_identifier].dropna()
+        else:
+            current_immerse_df['correct_participant_id'] = current_immerse_df[participant_identifier]
 
         # Case 1: Deletion IDs
         if self.delete_ids:
@@ -161,12 +175,14 @@ class DataCleaning:
                                  row[participant_number],
                                  row['VisitCode'],
                                  row['SiteCode']) in self.delete_ids, axis=1)]
-
+            if 'movisens_fidelity' in system:
+                current_immerse_df = current_immerse_df[
+                       ~current_immerse_df.apply(lambda row: str(row[primary_identifier]) in self.delete_ids, axis=1)]
             else:
                 current_immerse_df = current_immerse_df[~current_immerse_df.apply(
                     lambda row: (str(row[participant_identifier])) in self.delete_ids, axis=1)]
 
-        # # Case 2: Merging IDs
+        # Case 2: Merging IDs
         if self.merge_ids:
             print("IDs to Merge: ", self.merge_ids)
             if "movisens_esm" in system:
@@ -200,7 +216,7 @@ class DataCleaning:
             #     lambda row: self.add_ids.get(row[participant_number], row['correct_participant_id'])
             #     if pd.isna(row['correct_participant_id']) or str(row['correct_participant_id']).strip() == ""
             #     else row['correct_participant_id'], axis=1)
-        #
+
         # Case 4: Update IDS
         if self.update_ids:
             print("Current IDs to update : ", self.update_ids)
@@ -225,7 +241,10 @@ class DataCleaning:
                 current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
                     lambda row: self.update_ids.get((str(row[participant_identifier]), row[participant_number]),
                                                     row['correct_participant_id']), axis=1)
-
+            elif "movisens_fidelity" in system:
+                current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
+                    lambda row: self.update_ids.get((str(row[primary_identifier])),
+                                                    row['correct_participant_id']), axis=1)
             else:
                 current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
                     lambda row: self.update_ids.get((str(row[participant_identifier])),
@@ -276,7 +295,7 @@ class DataCleaning:
                 lambda row: self.assign_id_to_T3.get((row[participant_identifier], row[participant_number]),
                                                      row[participant_identifier]), axis=1)
 
-        current_immerse_df[participant_identifier] = current_immerse_df.pop("correct_participant_id")
+        current_immerse_df[primary_identifier] = current_immerse_df.pop("correct_participant_id")
         return current_immerse_df
 
     # Complete ALL ids which 'unit', 'condition', 'randomize' are missing.
@@ -315,16 +334,33 @@ class DataCleaning:
 
             for filename, dataframe in filenames_and_dataframes:
                 print(f"\nApplying changes to {filename}...")
+                df = dataframe.copy()
                 try:
-                    df = self._apply_changes_from_rulebook(
-                        dataframe,
-                        config['column_id'],
-                        config['column_id_number'],
-                        filename,
-                        immerse_system)
+                    if 'movisens_fidelity' in immerse_system:
+                        for col_id in config['column_id']:
+                            print(f"Processing column {col_id},...")
+                            df = self._apply_changes_from_rulebook(
+                                df,
+                                col_id,
+                                config['column_id_number'],
+                                filename,
+                                immerse_system
+                            )
 
-                    if config['column_id']:
-                        df.rename(columns={config['column_id']: "participant_identifier"}, inplace=True)
+                        existing_columns = [col for col in rename_fidelity_columns_dict if col in df.columns]
+                        df.rename(columns={col: rename_fidelity_columns_dict[col] for col in existing_columns}, inplace=True)
+
+                    else:
+                        df = self._apply_changes_from_rulebook(
+                            dataframe,
+                            config['column_id'],
+                            config['column_id_number'],
+                            filename,
+                            immerse_system)
+
+                        if config['column_id']:
+                            df.rename(columns={config['column_id']: "participant_identifier"}, inplace=True)
+
                     if config['column_id_number']:
                         df.rename(columns={config['column_id_number']: "participant_number"}, inplace=True)
 
@@ -333,8 +369,16 @@ class DataCleaning:
                         df = self.add_unit_site_and_randomized_values(df, "participant_identifier")
 
                     # Save all files as CSV with ";"
-                    output_path = cleaned_folder / filename.replace(".xlsx", ".csv")
+                    output_path = cleaned_folder / filename.replace("adjusted", "cleaned")
                     df.to_csv(output_path, sep=";", index=False)
+                    df.info()
+
+                    if 'movisens_fidelity' in immerse_system:
+                        df_ids_filtered = df[['participant_number', 'fidelity_participant_identifier_T1', 'time',
+                                              'reported_patient_identifier', 'rater_participant_identifier',
+                                              'fidelity_participant_identifier_T2', 'item_770']]
+                        new_output_path = cleaned_folder / f'extra_{filename.replace("adjusted", "ids_filtered")}'
+                        df_ids_filtered.to_csv(new_output_path, sep=";", index=False)
 
                     print(f"Exported cleaned file to {output_path}")
                     immerse_clean_dfs[filename] = df
@@ -354,7 +398,6 @@ class DataCleaning:
 
         df_issues = self.df.copy()
         merged_ids_rulebook_df = rulebook
-        merged_ids_rulebook_df.info()
 
         merged_ids_rulebook_df.rename(
             columns={merged_ids_rulebook_df.columns[0]: 'participant_identifier'}, inplace=True)
