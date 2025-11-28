@@ -6,6 +6,7 @@ from config.config_loader import load_config_file
 from validation.seach_values import execute_search
 from utils.retrieve_participants_ids import read_all_dataframes
 
+
 IMMERSE_GENERAL_REPOSITORY_PATH = load_config_file('immerse_general_repository', 'general_repository')
 IMMERSE_ORIGINAL_SOURCE_PATH = load_config_file('original_source', 'immerse')
 ID_CLEAN_IMMERSE_PATH = load_config_file('updated_source', 'immerse_clean')
@@ -107,10 +108,21 @@ def merge_dataframes(f1, f2, system):
     )
     how = "outer" if "movisens_esm" in system else "left"
 
-    merged_df = pd.merge(df1, df2, on=on_cols, how=how)
-    filename = f"{system}_rulebook_merged_with_current_ids.xlsx"
-    merged_df.to_excel(filename, index=False)
+    merged_df = pd.merge(df2, df1, on=on_cols, how=how)
+    filename = f"{system}_summary_ids.csv"
+    merged_df.to_csv(filename, index=False, sep=";")
 
+
+def extract_unique_identifiers(filepath, column_name):
+    print("\nPreparing summary...")
+    current_df = pd.read_excel(filepath, engine='openpyxl') if filepath.endswith(".xlsx") else pd.read_csv(filepath, sep=";", quotechar='"')
+    if column_name in current_df.columns:
+        unique_values_df = current_df[column_name].drop_duplicates().dropna()
+        output_filename = f'extract_unique_values_{column_name}.xlsx'
+        output_file = os.path.join(os.path.dirname(filepath), output_filename)
+        unique_values_df.to_excel(output_file, index=False)
+        # unique_values_df.to_csv(output_file, sep=';', index=False, quoting=csv.QUOTE_ALL)
+        print(f"Exported {len(unique_values_df)} from '{column_name}' unique IDs.")
 
 def concatenate_dataframes(directory):
     dfs = []
@@ -153,8 +165,21 @@ def get_unique_values(filepath):
         unique_values.to_excel('unique_values.xlsx', index=False)
 
 
-# create_codebook(ID_CLEAN_IMMERSE_PATH, 'maganamed')
-# merge_dataframes(f1_path, f2_path, "other")
-# concatenate_dataframes(directory)
-# get_unique_values()
 
+def concat_files(directory, system):
+    concatenated_files = []
+    dataframes, filenames = read_all_dataframes(directory, system)
+    for dataframe, filename in zip(dataframes, filenames):
+        if filename in esm_files_to_exclude and "Fidelity" in filename:
+            concatenated_files.append(dataframe)
+
+    concatenated_df = pd.concat(concatenated_files)
+    concatenated_df.drop_duplicates()
+    new_filepath = os.path.join(directory, system)
+    concatenated_df.to_csv(os.path.join(new_filepath, f'{system}_merged.csv'), sep=";", index=False)
+    print(f"Exported {len(concatenated_df)}")
+
+
+# concat_files(directory=ID_CLEAN_IMMERSE_PATH, system='movisens_fidelity')
+# create_codebook(ID_CLEAN_IMMERSE_PATH, 'maganamed')
+# merge_dataframes(f1_path, f2_path, "dmmh")

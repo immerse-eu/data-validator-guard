@@ -26,7 +26,8 @@ ID_CLEANING_IMMERSE_PATH = load_config_file('updated_source',
 
 RULEBOOK_IDS_MAGANAMED_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_maganamed')
 RULEBOOK_IDS_MOVISENS_ESM_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_esm')
-# RULEBOOK_IDS_MOVISENS_SENSING_PATH = load_config_file('auxiliarFiles', '')  # TODO: Pending
+RULEBOOK_IDS_MOVISENS_FIDELITY_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_fidelity')
+RULEBOOK_IDS_MOVISENS_SENSING_PATH = load_config_file('','')  # TODO
 RULEBOOK_IDS_REDCAP_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_redcap_data_request')  # Rulebook tailored according DataRequest31
 RULEBOOK_IDS_DMMH_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_dmmh')
 
@@ -39,7 +40,7 @@ def general_validation_ids(df_control, rulebook, df_to_validate, file):
     general_validation.check_duplications_applying_normalisation('participant_identifier')
     general_validation.compare_ids_with_redcap_ids(df_control, id_column=0)
     general_validation.check_typos_in_ids(id_column=0)
-    df_report = general_validation.report(os.path.join(ISSUES_PATH, "ID_issues"), file)
+    df_report = general_validation.report(os.path.join(ISSUES_PATH, "issues_ids"), file)
 
     #  Cleaning process
     general_id_cleaning = DataCleaning(df_report)
@@ -52,9 +53,11 @@ def general_validation_ids(df_control, rulebook, df_to_validate, file):
         general_id_cleaning.changes_to_apply_when_using_rulebook(updated_rulebook, 'movisens_esm')
         general_id_cleaning.execute_corrections_to_original_tables(ID_CLEANING_IMMERSE_PATH, 'movisens_esm')
 
-    elif "movisens_sensing" in file:
-        print("Cleaning movisens_sensing")
-        # TODO: pending to do
+    elif "movisens_fidelity" in file:
+        print("Cleaning movisens_fidelity")
+        updated_rulebook = general_id_cleaning.prepare_ids_correction(rulebook, CHANGES_PATH, file)
+        general_id_cleaning.changes_to_apply_when_using_rulebook(updated_rulebook, 'movisens_fidelity')
+        general_id_cleaning.execute_corrections_to_original_tables(ID_CLEANING_IMMERSE_PATH, 'movisens_fidelity')
 
     elif "dmmh" in file:
         print("Cleaning DMMH")
@@ -73,26 +76,15 @@ def general_validation_ids(df_control, rulebook, df_to_validate, file):
 
 
 # Function to run ID validation from CSV/EXCEL files instead of SQL tables
-def run_id_validation_from_df(reference_all_ids_directory, rulebook, test_directory, filename):
-    if os.path.exists(reference_all_ids_directory):
-        print("REDCap IDs path:", reference_all_ids_directory)
-        df_control = pd.read_excel(reference_all_ids_directory)
+def run_id_validation_from_df(redcap_id_reference_path, rulebook, extracted_ids_df, extracted_ids_filename):
+    if os.path.exists(redcap_id_reference_path) and os.path.exists(rulebook):
+        print("Loading REDCap reference IDs path:", redcap_id_reference_path)
+        print("Loading rulebook path: ", rulebook)
+        print("Loading extracted IDs to validate:", extracted_ids_filename)
+        df_control = pd.read_excel(redcap_id_reference_path)
+        rulebook_df = pd.read_excel(rulebook) if rulebook.endswith('.xlsx') else pd.read_csv(rulebook, sep=';')
+        general_validation_ids(df_control, rulebook_df, extracted_ids_df, extracted_ids_filename)
 
-    if os.path.exists(rulebook):
-        print("Loading rulebook from: ", rulebook)
-        rulebook_df = pd.read_csv(rulebook, sep=";") if rulebook.endswith('.csv') else pd.read_excel(rulebook, engine='openpyxl')
-
-        for file in os.listdir(test_directory):
-            if file.startswith(filename):
-                if file.endswith(".csv"):
-                    csv_df = pd.read_csv(os.path.join(test_directory, file))  # File(s) to validate
-                    print(f"\n\033[34mFile to validate: '{file}' \033[0m\n")
-                    general_validation_ids(df_control, rulebook_df, csv_df, file)
-
-                # elif file.endswith(".xlsx"):
-                #     excel_df = pd.read_excel(os.path.join(test_directory, file))  # File(s) to validate
-                #     print(f"\n\033[34mFile to validate:'{file}' \033[0m\n")
-                #     general_validation_ids(df_control, rulebook_df, excel_df, file)
     else:
         print(f"\n\033[34mFilepath for rulebook not found!\033[0m\n")
         create_merged_esm_ids_rulebook()  # TODO: After the file is created, changes must be added manually!
@@ -110,17 +102,34 @@ def execute_immerse_id_validation():
             print("Maganamed", filename)
             run_id_validation_from_df(IDS_REFERENCE_PATH, RULEBOOK_IDS_MAGANAMED_PATH, IDS_TO_VERIFY_PATH, filename)
 
-        elif filename.startswith("extracted") and "movisens_esm" in filename:
-            print("Movisens_ESM", filename)
-            run_id_validation_from_df(IDS_REFERENCE_PATH, RULEBOOK_IDS_MOVISENS_ESM_PATH, IDS_TO_VERIFY_PATH, filename)
+        if filename.startswith("extracted") and "movisens_esm" in filename:
+            print(f"\n\033[34mMovisens_ESM\033[0m\n")
+            extracted_ids_df = pd.read_csv(os.path.join(IDS_TO_VERIFY_PATH, filename))
+            run_id_validation_from_df(
+                redcap_id_reference_path=IDS_REFERENCE_PATH,
+                rulebook=RULEBOOK_IDS_MOVISENS_ESM_PATH,
+                extracted_ids_df=extracted_ids_df,
+                extracted_ids_filename=filename
+            )
 
-        elif filename.startswith("extracted") and "movisens_sensing" in filename:  # TODO
-            continue
+        if filename.startswith('extracted_ids_movisens_fidelity_merged') and filename.endswith('.xlsx'):
+            print("Movisens_Fidelity: ", filename)
+            extracted_ids_df = pd.read_excel(os.path.join(IDS_TO_VERIFY_PATH, filename))
+            run_id_validation_from_df(
+                redcap_id_reference_path=IDS_REFERENCE_PATH,
+                rulebook=RULEBOOK_IDS_MOVISENS_FIDELITY_PATH,
+                extracted_ids_df=extracted_ids_df,
+                extracted_ids_filename=filename
+            )
 
-        elif filename.startswith("extracted") and "dmmh" in filename:
+        if filename.startswith("extracted") and "movisens_sensing" in filename:
+            print("Movisens_Sensing", filename)
+            run_id_validation_from_df(IDS_REFERENCE_PATH, RULEBOOK_IDS_MOVISENS_SENSING_PATH, IDS_TO_VERIFY_PATH, filename)  # TODO
+
+        if filename.startswith("extracted") and "dmmh" in filename:  # TODO
             run_id_validation_from_df(IDS_REFERENCE_PATH, RULEBOOK_IDS_DMMH_PATH, IDS_TO_VERIFY_PATH, filename)
 
-        elif filename.startswith("extracted") and "redcap" in filename:
+        if filename.startswith("extracted") and "redcap" in filename:
             print("REDCap data request.", filename)
             run_id_validation_from_df(IDS_REFERENCE_PATH, RULEBOOK_IDS_REDCAP_PATH, IDS_TO_VERIFY_PATH, filename)
 

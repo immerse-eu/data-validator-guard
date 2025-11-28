@@ -1,3 +1,4 @@
+import csv
 import os
 import re
 import pandas as pd
@@ -94,16 +95,14 @@ class DataValidator:
         comparison_ids = set(self.df.iloc[:, 0].dropna().astype(str).str.strip())
         control_redcap_ids = set(df_control.iloc[:, 0].dropna().astype(str).str.strip())
 
-        print(f"  | Total Reference ids length: {len(control_redcap_ids)}")
-        print(f"  | Current test file length: {len(comparison_ids)}")
+        print(f"\n  REDCap comparison | Total Reference ids length: {len(control_redcap_ids)}")
+        print(f"\n  REDCap comparison | Current test file length: {len(comparison_ids)}")
 
-        missing_ids = control_redcap_ids - comparison_ids
+        # missing_ids = control_redcap_ids - comparison_ids
         extra_ids = comparison_ids - control_redcap_ids
 
-        print(f"  | {len(missing_ids)} Missing IDs in test file: ", list(missing_ids))
-        print(f"  | {len(extra_ids)} Extra IDs in test file: ", list(extra_ids))
-
         if extra_ids:
+            print(f"\n❌ | {len(extra_ids)} IDs not identified in REDCap:", list(extra_ids))
             extra_ids = self.df[self.df["participant_identifier"].astype(str).str.strip().isin(extra_ids)].copy()
             extra_ids["issue_type"] = "unknown_id_in_reference"
             self.issues.append(extra_ids[["participant_identifier", "issue_type"]])
@@ -118,8 +117,8 @@ class DataValidator:
                 .agg({"issue_type": lambda x: ", ".join(sorted(set(x)))})
             )
             grouped_issues = grouped_issues.sort_values(by=["issue_type", "participant_identifier"], ascending=True)
-            # grouped_issues.to_csv(os.path.join(export_path, f"new_issues_{filename}"), index=False)
-            print(f"\n All general issues exported as: {f'issues_{filename}'}")
+            grouped_issues.to_csv(os.path.join(export_path, f"current_issues_{filename.replace(".xlsx", ".csv")}"), index=False, quoting=csv.QUOTE_ALL)
+            print(f"\n All general issues exported as: {f'current_issues_{filename}'}")
             return grouped_issues
         else:
             print("\n Report from general validation process: All validations were successfully passed ✔ !!")

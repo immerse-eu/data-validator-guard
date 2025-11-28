@@ -1,18 +1,12 @@
+import os
+import re
+import pandas as pd
+
 VALID_TYPE_VISIT_ATTENDANCE = {
     0: 'T0',  # Baseline
     1: 'T1',
     2: 'T2',
     3: 'T3',
-}
-
-''' "SITE_CODE_MAPPING" is unclear how was defined by GH,  but I am going to use suggested codes from Anita:'''
-
-SUGGESTION_SITE_CODING_ESM = {
-    0: "UK",
-    1: "GE",
-    2: "BE",
-    7: ["SK", "SK_Female"],
-    8: ["SK_Kosice", "SK_Kosice_Female"]
 }
 
 SITE_CODING_ESM_BY_LAND = {
@@ -26,56 +20,72 @@ SITE_CODING_ESM_BY_LAND = {
 }
 
 
-# SITE_CODE_MAPPING = {
-#     "UK": {0: 1, 1: 2},
-#     "GE": {0: 3, 1: 4},
-#     "BE": {0: 5, 1: 6},
-#     "SK": {0: 7, 1: 8},
-#     "SK_Female": {0: 7, 1: 8},
-#     "SK_Kosice": {0: 7, 1: 8},
-#     "SK_Kosice_Female": {0: 7, 1: 8},
-# }
-
-
 class MovisensxsValidation:
 
     def __init__(self, df):
-        self.movisensxs_df = df
+        self.movisensxs_df = df.copy()
         self.movisensxs_issues = []
 
-    # Category: MovisensESM
-    def validate_visit_country_period_assignation(self, filename):
-        def control_filename_structure():
+    def get_expected_visitcode(self, filename):
+        '''
+        VisitCode is related to T0-T3 values. This info is taken from a filename and compared with the valid dict; when
+        a conditions matches, then it returns a key value.
+        '''
 
-            for code_visit, visit in VALID_TYPE_VISIT_ATTENDANCE.items():
-                for site_name, codes_dict in SITE_CODING_ESM_BY_LAND.items():
-                    for site_code in codes_dict:
+        visit_match = re.search(r'_(T\d)_', filename)
+        if visit_match is not None:
+            extracted_visit_value = visit_match.group(1)
+            for key, value in VALID_TYPE_VISIT_ATTENDANCE.items():
+                if value == extracted_visit_value:
+                    return key
+            return None
 
-                        filename_structure = f"IMMERSE_{visit}_{site_name}"
+    def extract_site_from_id(self, id_str):
+        match = re.match(r"I[-_](\w+)[-_]P[-_]?\d+\w*", id_str)
+        if match is not None:
+            return match.group(1) if match else None
 
-                        if filename == filename_structure:
-                            print(f"\n ✔ | Valid filename for: {filename} & {filename_structure}")
+    def get_expected_sitecode(self, site_str):
+        for site_dict in SITE_CODING_ESM_BY_LAND.values():
+            for key, value in site_dict.items():
+                if value == site_str:
+                    return key
+        return None
 
-                            correct_site_code = all(site_code in self.movisensxs_df['SiteCode'].unique() for site_code in codes_dict.keys())
-                            correct_visit_code = code_visit in self.movisensxs_df['VisitCode'].unique()
-                            correct_period = code_visit in self.movisensxs_df['period'].unique()
+    def validate_visit_and_site_assignation(self, filename):
+        expected_visit_code = self.get_expected_visitcode(filename)
 
-                            print('site_code: ', site_code, self.movisensxs_df['SiteCode'].unique())
-                            print('visit_code: ', code_visit,  self.movisensxs_df['VisitCode'].unique())
-                            print('period: ', code_visit, self.movisensxs_df['period'].unique())
+        for _, row in self.movisensxs_df.iterrows():
+            participant_identifier = row.iloc[0]
+            extracted_site_value = self.extract_site_from_id(row.iloc[0])
+            expected_site_code = self.get_expected_sitecode(extracted_site_value)
+            issues = {"participant_identifier": participant_identifier}
 
-                            print(correct_site_code, correct_visit_code, correct_period)
-                            return filename_structure, correct_site_code, correct_visit_code, correct_period
+            # --- VisitCode ---
+            visit_code = row['VisitCode']
+            if pd.isna(visit_code) or expected_visit_code != visit_code:
+                issues['VisitCode_expected'] = expected_visit_code
+                issues['VisitCode_actual'] = visit_code
 
-        valid_filename_structure, valid_site, valid_location, valid_period = control_filename_structure()
+            # --- SiteCode ---
+            site_code = row['SiteCode']
+            if pd.isna(site_code) or expected_site_code != site_code:
+                issues['SiteCode_expected'] = expected_site_code
+                issues['SiteCode_actual'] = site_code
 
-        if not valid_filename_structure:
-            print(f"\n❌ | Issue found in name: Invalid {filename}")
-            self.movisensxs_issues.append(filename)  # Double check
+            if len(issues) > 1:
+                issues['filename'] = filename
+                self.movisensxs_issues.append(issues)
 
-        if not valid_site or valid_location or valid_period:
-            print(f"\n❌ | Issue in code assignation:\n "
-                  f"SiteCode: {valid_site},\n "
-                  f"LocationCode: {valid_location}, \n"
-                  f"PeriodCode: {valid_location}, \n")
-            self.movisensxs_issues.append(filename)  # Double check
+    def passed_validation(self, filename, issues_path):
+        if len(self.movisensxs_issues) == 0:
+            print(f"\n ✔  | Validation successfully passed in {filename}!")
+            return True
+        else:
+            print(f"❌ Issues found. Report saved in {issues_path}. ")
+            return self.generate_issues_report(filename, issues_path)
+
+    def generate_issues_report(self, filename, issues_path):
+        df_report = pd.DataFrame(self.movisensxs_issues).drop_duplicates()
+        filename = f"movisens_esm_{filename}_issues.csv"
+        df_report.to_csv(os.path.join(issues_path, filename), sep=";", index=False)

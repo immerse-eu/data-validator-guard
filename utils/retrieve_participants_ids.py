@@ -9,8 +9,8 @@ NEW_DB_PATH = load_config_file('researchDB', 'cleaned_db')
 DB_CATALOGUE_PATH = load_config_file('researchDB', 'db_catalogue')
 IMMERSE_CLEANING_SOURCE = load_config_file('updated_source', 'immerse_clean')
 
-esm_files_to_exclude = ["codebook.xlsx", "Fidelity_BE.xlsx", "Fidelity_c_UK.xlsx", "Fidelity_GE.xlsx",
-                        "Fidelity_SK.xlsx", "Fidelity_UK.xlsx", "IMMERSE_Fidelity_SK_Kosice.xlsx", "Sensing.xlsx"]
+esm_files_to_exclude = ["Fidelity_BE.xlsx", "Fidelity_c_UK.xlsx", "Fidelity_GE.xlsx",
+                        "Fidelity_SK.xlsx", "Fidelity_UK.xlsx", "IMMERSE_Fidelity_SK_Kosice.xlsx"]
 
 
 def detect_separator(filepath):
@@ -22,28 +22,8 @@ def detect_separator(filepath):
             return delimiter
 
 
-def read_dataframe(original_directory, file, immerse_system):
-    for root, dirs, files in os.walk(original_directory):
-        if immerse_system in dirs:
-            sub_folder_path = os.path.join(root, immerse_system)
-            for folder, _, files in os.walk(sub_folder_path):
-                # print("subfolder", sub_folder_path)
-                for filename in files:
-                    if filename.endswith(".xlsx") or filename.endswith(".csv"):
-                        filepath = os.path.join(folder, filename)
-                        separator = detect_separator(filepath)
-                        # print("Filepath", filepath)
-                        try:
-                            print("Current filename", filename)
-                            current_df = pd.read_excel(filepath, engine='openpyxl') if filename.endswith(".xlsx") \
-                                else pd.read_csv(filepath, sep=separator, encoding='utf-8', low_memory=False)
-                            return current_df
-
-                        except Exception as e:
-                            print(f"Unexpected error in  {filename}", e)
-
-
 def read_all_dataframes(original_directory, immerse_system):
+    print("Reading dfs...")
     current_sub_directory = None
     filenames = []
     dataframes = []
@@ -52,6 +32,15 @@ def read_all_dataframes(original_directory, immerse_system):
     for root, dirs, files in os.walk(original_directory):
         if immerse_system in dirs:
             current_sub_directory = os.path.join(root, immerse_system)
+            if 'movisens_fidelity' in immerse_system:
+                dirs.remove(immerse_system)
+                merged_filepath = Path(current_sub_directory)/'2_movisens_fidelity_adjusted.csv'
+                if merged_filepath.is_file():
+                    separator = detect_separator(merged_filepath)  #
+                    filenames.append(merged_filepath.name)
+                    df = pd.read_csv(merged_filepath, sep=separator)
+                    dataframes.append(df)
+                    return dataframes, filenames
 
     csv_files = list(Path(current_sub_directory).rglob("*.csv"))
     excel_files = list(Path(current_sub_directory).rglob("*.xlsx"))
@@ -59,18 +48,16 @@ def read_all_dataframes(original_directory, immerse_system):
     if csv_files:
         for csv in csv_files:
             separator = detect_separator(csv)  # Verify
-            try:
-                df = pd.read_csv(csv, sep=separator)
-                print(f"✓ Loaded {csv.name} with {df.shape[0]} rows and {df.shape[1]} columns.")
-                filenames.append(csv.name)
-                dataframes.append(df)
-            except pd.errors.ParserError as e:
-                print(f"✗ ParserError in {csv.name}: {e}")
-                continue
+            filenames.append(csv.name)
+            print("CSV file:", csv.name)
+            df = pd.read_csv(csv, sep=separator, low_memory=False)
+            dataframes.append(df)
 
     elif excel_files:
         for excel in excel_files:
             if "movisens_esm" in immerse_system and excel.name in esm_files_to_exclude:
+                continue
+            if "movisens_fidelity" in immerse_system and not excel.name in esm_files_to_exclude:
                 continue
             filenames.append(excel.name)
             df = pd.read_excel(excel)
@@ -100,9 +87,9 @@ def export_ids_per_table(df):
 def export_tricky_ids(df):
     unique_ids = set()
 
-    if 'participant_id' in df.columns:
-        print("participant_id type")
-        ids_df = df['participant_id']
+    if 'participant_identifier' in df.columns:  # Alternative: participant_id
+        print("participant_identifier type")
+        ids_df = df['participant_identifier']
         unique = ids_df.drop_duplicates().dropna()
         unique_ids.update(unique)
 
@@ -140,6 +127,8 @@ def export_tricky_ids(df):
 
 
 def get_unique_participant_identifier_per_system(system, source_type):
+    # For source type, there are two options: "database" or "files"
+
     unique_participant_identifiers = set()
 
     print(f'Getting participant ids from {system}...')
@@ -161,14 +150,14 @@ def get_unique_participant_identifier_per_system(system, source_type):
 
     print("Unique participant identifiers per system: ", len(unique_participant_identifiers))
     columns = ['participant_identifier', 'participant_number', 'Country', 'VisitCode', 'SiteCode']  # MovisensESM only
-    if columns in unique_participant_identifiers:
-        rows = list(unique_participant_identifiers)   # TODO: Verify functionally. if not: rollback to last commit.
+    if unique_participant_identifiers:
+        rows = list(unique_participant_identifiers)
         unique_participants_df = pd.DataFrame(rows, columns=columns)
     else:
         unique_participants_df = pd.DataFrame({f'participant_identifier': sorted(unique_participant_identifiers)})
     output_filename = f'extracted_ids_{system}.xlsx'
     output_file = os.path.join(os.path.dirname(DB_CATALOGUE_PATH), output_filename)
-    unique_participants_df.to_csv(output_file, sep=';', index=False)
+    unique_participants_df.to_excel(output_file, index=False)
     print("File exported in:", output_file)
 
 # TODO: Uncomment when requested.
