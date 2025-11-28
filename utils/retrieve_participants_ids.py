@@ -9,8 +9,8 @@ NEW_DB_PATH = load_config_file('researchDB', 'cleaned_db')
 DB_CATALOGUE_PATH = load_config_file('researchDB', 'db_catalogue')
 IMMERSE_CLEANING_SOURCE = load_config_file('updated_source', 'immerse_clean')
 
-esm_files_to_exclude = ["codebook.xlsx", "Fidelity_BE.xlsx", "Fidelity_c_UK.xlsx", "Fidelity_GE.xlsx",
-                        "Fidelity_SK.xlsx", "Fidelity_UK.xlsx", "IMMERSE_Fidelity_SK_Kosice.xlsx", "Sensing.xlsx"]
+esm_files_to_exclude = ["Fidelity_BE.xlsx", "Fidelity_c_UK.xlsx", "Fidelity_GE.xlsx",
+                        "Fidelity_SK.xlsx", "Fidelity_UK.xlsx", "IMMERSE_Fidelity_SK_Kosice.xlsx"]
 
 
 def detect_separator(filepath):
@@ -23,6 +23,7 @@ def detect_separator(filepath):
 
 
 def read_all_dataframes(original_directory, immerse_system):
+    print("Reading dfs...")
     current_sub_directory = None
     filenames = []
     dataframes = []
@@ -31,6 +32,15 @@ def read_all_dataframes(original_directory, immerse_system):
     for root, dirs, files in os.walk(original_directory):
         if immerse_system in dirs:
             current_sub_directory = os.path.join(root, immerse_system)
+            if 'movisens_fidelity' in immerse_system:
+                dirs.remove(immerse_system)
+                merged_filepath = Path(current_sub_directory)/'2_movisens_fidelity_adjusted.csv'
+                if merged_filepath.is_file():
+                    separator = detect_separator(merged_filepath)  #
+                    filenames.append(merged_filepath.name)
+                    df = pd.read_csv(merged_filepath, sep=separator)
+                    dataframes.append(df)
+                    return dataframes, filenames
 
     csv_files = list(Path(current_sub_directory).rglob("*.csv"))
     excel_files = list(Path(current_sub_directory).rglob("*.xlsx"))
@@ -45,7 +55,9 @@ def read_all_dataframes(original_directory, immerse_system):
 
     elif excel_files:
         for excel in excel_files:
-            if "movisens_esm" in immerse_system and excel.name in files_to_exclude:
+            if "movisens_esm" in immerse_system and excel.name in esm_files_to_exclude:
+                continue
+            if "movisens_fidelity" in immerse_system and not excel.name in esm_files_to_exclude:
                 continue
             filenames.append(excel.name)
             df = pd.read_excel(excel)
