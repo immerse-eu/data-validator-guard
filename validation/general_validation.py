@@ -1,3 +1,4 @@
+import csv
 import os
 import re
 import pandas as pd
@@ -116,7 +117,7 @@ class DataValidator:
                 .agg({"issue_type": lambda x: ", ".join(sorted(set(x)))})
             )
             grouped_issues = grouped_issues.sort_values(by=["issue_type", "participant_identifier"], ascending=True)
-            grouped_issues.to_csv(os.path.join(export_path, f"current_issues_{filename}"), index=False)
+            grouped_issues.to_csv(os.path.join(export_path, f"current_issues_{filename.replace(".xlsx", ".csv")}"), index=False, quoting=csv.QUOTE_ALL)
             print(f"\n All general issues exported as: {f'current_issues_{filename}'}")
             return grouped_issues
         else:
