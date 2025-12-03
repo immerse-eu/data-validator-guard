@@ -128,15 +128,7 @@ class DataCleaning:
                 #     self.assign_id_to_T3[key] = correct_participant_identifier
 
             if action.startswith('update') and key is not None:
-                if system == 'maganamed':
-                    self.update_ids[key] = {
-                        'correct_participant_identifier': correct_participant_identifier,
-                        'unit': row.get('unit'),
-                        'condition': row.get('condition'),
-                        'randomize': row.get('randomize')
-                    }
-                else:
-                    self.update_ids[key] = correct_participant_identifier
+                self.update_ids[key] = correct_participant_identifier
 
             if action.startswith('merge') and key is not None:  # TODO: Check correctness of merging
                 self.merge_ids[key] = correct_participant_identifier
@@ -148,10 +140,10 @@ class DataCleaning:
                 #         self.merge_ids[part_number.strip()] = correct_participant_identifier
                 #         print('extract_participant_number_to_merge', part_number, correct_participant_identifier)
 
-        print(f"\n{len(self.delete_ids)} IDs to delete:", self.delete_ids,
-              f"\n{len(self.update_ids)} IDS to update: ", self.update_ids,
-              f"\n{len(self.add_ids)} IDs to add: ", self.add_ids,
-              f"\n{len(self.merge_ids)} IDs to merge: ", self.merge_ids)
+        print(f"\n- {len(self.delete_ids)} IDs to delete:", self.delete_ids,
+              f"\n- {len(self.update_ids)} IDS to update: ", self.update_ids,
+              f"\n- {len(self.add_ids)} IDs to add: ", self.add_ids,
+              f"\n- {len(self.merge_ids)} IDs to merge: ", self.merge_ids)
 
     # Apply changes from rulebook
     def _apply_changes_from_rulebook(self, current_df, participant_identifier, participant_number, filename, system):
@@ -212,10 +204,11 @@ class DataCleaning:
                     return normalize_ids.get(key, row.get('correct_participant_id'))
 
                 current_immerse_df['correct_participant_id'] = current_immerse_df.apply(lookup_row, axis=1)
-            # current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
-            #     lambda row: self.add_ids.get(row[participant_number], row['correct_participant_id'])
-            #     if pd.isna(row['correct_participant_id']) or str(row['correct_participant_id']).strip() == ""
-            #     else row['correct_participant_id'], axis=1)
+            else:
+                current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
+                    lambda row: self.add_ids.get(row[participant_number], row['correct_participant_id'])
+                    if pd.isna(row['correct_participant_id']) or str(row['correct_participant_id']).strip() == ""
+                    else row['correct_participant_id'], axis=1)
 
         # Case 4: Update IDS
         if self.update_ids:
@@ -239,7 +232,7 @@ class DataCleaning:
 
             elif "maganamed" in system:
                 current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
-                    lambda row: self.update_ids.get((str(row[participant_identifier]), row[participant_number]),
+                    lambda row: self.update_ids.get((str(row[participant_identifier])),
                                                     row['correct_participant_id']), axis=1)
             elif "movisens_fidelity" in system:
                 current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
@@ -256,15 +249,14 @@ class DataCleaning:
                 if original_id in self.update_ids:
                     update_row = self.update_ids[original_id]
                     print('original_id', original_id, "update_id", update_row)
-                    row['correct_participant_id'] = update_row['correct_participant_identifier']
+                    row['correct_participant_id'] = update_row
 
                     for col in ['unit', 'condition', 'randomize']:
-                        value = row.get(col)
+                        value = row[col]
                         if pd.isna(value) or str(value).strip() == '':
-                            update_value = update_row.get(col)
+                            update_value = update_row
                             if update_value is not None:
                                 row[col] = update_value
-                                # print('update_value', row[col], "for participant", row['correct_participant_id'])
                 return row
 
             if "maganamed" in system:
@@ -295,21 +287,24 @@ class DataCleaning:
                 lambda row: self.assign_id_to_T3.get((row[participant_identifier], row[participant_number]),
                                                      row[participant_identifier]), axis=1)
 
-        current_immerse_df[primary_identifier] = current_immerse_df.pop("correct_participant_id")
+        if "movisens_esm" in system:
+            current_immerse_df[primary_identifier] = current_immerse_df.pop("correct_participant_id")
+        current_immerse_df[participant_identifier] = current_immerse_df.pop("correct_participant_id")
         return current_immerse_df
 
     # Complete ALL ids which 'unit', 'condition', 'randomize' are missing.
     def add_unit_site_and_randomized_values(self, cleand_df, id_column):
         reference_df = get_columns_from_id_reference()
+        reference_df.info()
         ref_lookup = reference_df.set_index('correct_participant_identifier')
-        [['unit', 'condition', 'randomize']].to_dict(orient='index')
 
         def update_row(row):
             original_id = str(row[id_column])
-            if original_id in ref_lookup:
-                update_info = ref_lookup[original_id]
+            if original_id in ref_lookup.index:
+                update_info = ref_lookup.loc[original_id]
                 for col in ['unit', 'condition', 'randomize']:
-                    if pd.isna(row.get(col)) or str(row.get(col)).strip() == '':
+                    value = row.get(col)
+                    if pd.isna(value) or str(value).strip() == '':
                         row[col] = update_info.get(col)
             return row
 
@@ -371,7 +366,6 @@ class DataCleaning:
                     # Save all files as CSV with ";"
                     output_path = cleaned_folder / filename.replace("adjusted", "cleaned")
                     df.to_csv(output_path, sep=";", index=False)
-                    df.info()
 
                     if 'movisens_fidelity' in immerse_system:
                         df_ids_filtered = df[['participant_number', 'fidelity_participant_identifier_T1', 'time',
