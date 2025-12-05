@@ -6,7 +6,7 @@ from config.config_loader import load_config_file
 FIXES_FILE_PATH = load_config_file('reports', 'fixes')
 CHANGES_FILE_PATH = load_config_file('reports', 'changes')
 DB_PATH = load_config_file('researchDB', 'db_path')
-NEW_DB_PATH = load_config_file('researchDB', 'cleaned_db')
+NEW_DB_PATH = load_config_file('researchDB', 'clean_db')
 
 
 def get_all_tables(path_db):

@@ -9,10 +9,12 @@ from pandas.errors import DatabaseError
 
 
 TEMPORAL_SQL_DB_PATH = load_config_file('researchDB', 'db_path')
+temporal_path = os.path.join(TEMPORAL_SQL_DB_PATH, '')
 
 
 def connect_and_fetch_table(table_name):
-    sql_connection = sqlite3.connect(TEMPORAL_SQL_DB_PATH)
+    sql_connection = sqlite3.connect(temporal_path)
+    print(temporal_path)
 
     try:
         query = f"SELECT * FROM `{table_name}`"
@@ -26,7 +28,13 @@ def connect_and_fetch_table(table_name):
             raise
     finally:
         sql_connection.close()
-    return df
+
+
+def replace_table(df, table_name):
+    print(f"Replacing {table_name}...")
+    conn = sqlite3.connect(temporal_path)
+    df.to_sql(table_name, conn, if_exists="replace", index=False)
+    conn.close()
 
 
 def create_connection(db_file):
@@ -61,8 +69,8 @@ def retrieve_input_files(path, connect):
         for filename in files:
             filepath = os.path.join(root, filename)
             if filename.endswith('.csv'):
-                delimiter = detect_delimiter(filepath)
-                csv_data = pd.read_csv(filepath, delimiter=delimiter, engine='python')
+                sep = detect_delimiter(filepath)
+                csv_data = pd.read_csv(filepath, sep=sep, engine='python')
                 filename = filename.replace(".csv", "")
                 import_data_into_sql_lite(connect, filename, csv_data)
 
@@ -70,13 +78,13 @@ def retrieve_input_files(path, connect):
 def create_database(sql_lite_database_directory, database_name):
 
     immerse_directory = {
-        'maganamed_path': load_config_file('immerse_cleaned_ids', 'maganamed'),
-        'movisens_esm_path': load_config_file('immerse_cleaned_ids', 'movisens_esm'),
-        'movisens_sensing_path': load_config_file('immerse_cleaned_ids', 'movisens_sensing'),
-        'movisens_fidelity_path': load_config_file('immerse_cleaned_ids', 'redcap_id_summary'),
-        'dmmh_app_path': load_config_file('immerse_cleaned_ids', 'dmmh_momentapp'),
-        'dmmh_summary_path': load_config_file('immerse_preprocessed', 'dmmh_logins'),
-        'redcap_summary_path': load_config_file('immerse_preprocessed', 'redcap_master_ids'),
+        'maganamed_path': load_config_file('immerse_load', 'maganamed'),
+        'movisens_esm_path': load_config_file('immerse_load', 'movisens_esm'),
+        'movisens_sensing_path': load_config_file('immerse_load', 'movisens_sensing'),
+        'movisens_fidelity_path': load_config_file('immerse_load', 'redcap_id_summary'),
+        'dmmh_app_path': load_config_file('immerse_load', 'dmmh_momentapp'),
+        'dmmh_summary_path': load_config_file('immerse_load', 'dmmh_logins'),
+        'redcap_summary_path': load_config_file('immerse_load', 'redcap_id_summary'),
     }
 
     now = datetime.datetime.now()

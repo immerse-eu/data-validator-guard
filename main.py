@@ -18,17 +18,17 @@ FIXES_PATH = load_config_file('reports', 'fixes')
 
 IDS_REFERENCE_PATH = load_config_file('auxiliarFiles', 'ids_reference')  # RedCap IDs from Anita
 IDS_TO_VERIFY_PATH = load_config_file('auxiliarFiles', 'ids_to_verify')  # Extracted IDs only from original files.
-ID_CLEANING_IMMERSE_PATH = load_config_file('updated_source','immerse_clean')  # Copy of files which are changing
+ID_CLEANING_IMMERSE_PATH = load_config_file('updated_source', 'immerse_clean')  # Copy of files which are changing
 
 RULEBOOK_IDS_MAGANAMED_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_maganamed')
 RULEBOOK_IDS_MOVISENS_ESM_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_esm')
 RULEBOOK_IDS_MOVISENS_FIDELITY_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_fidelity')
 RULEBOOK_IDS_MOVISENS_SENSING_PATH = load_config_file('','')
-RULEBOOK_IDS_REDCAP_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_redcap_data_request')  # Rulebook DataRequest31
+RULEBOOK_IDS_REDCAP_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_redcap_data_request')  # DataRequest31
 RULEBOOK_IDS_DMMH_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_dmmh')
 
-TEMPORAL_SQL_DB_PATH = load_config_file('researchDB', 'db_path')
-FINAL_SQL_DB_PATH = load_config_file('researchDB', 'cleaned_db')
+TEMPORAL_SQL_DB_PATH = load_config_file('researchDB', 'db_path')  # DB to apply additions from validation
+FINAL_SQL_DB_PATH = load_config_file('researchDB', 'clean_db')    # DB to clean incidences from validation
 
 
 # General initial rule: ID validation
@@ -141,7 +141,7 @@ def main():
     # # --- Step 2: Import generated files from step1 into a temporal DB.
     create_database(TEMPORAL_SQL_DB_PATH, 'temporal_research_database')
 
-    # # --- Step 3: Validation of Maganamed & MovisensXS from temporal DB.
+    # --- Step 3: Validation of Maganamed & MovisensXS from temporal DB.
     run_validation_maganamed()
     clone_database(TEMPORAL_SQL_DB_PATH, FINAL_SQL_DB_PATH, "validated_research_database")
     cleaning_db(FINAL_SQL_DB_PATH, system='maganamed')
