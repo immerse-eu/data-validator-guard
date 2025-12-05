@@ -23,7 +23,7 @@ def detect_separator(filepath):
 
 
 def read_all_dataframes(original_directory, immerse_system):
-    print("Reading dfs...")
+    print("\nReading dfs...")
     current_sub_directory = None
     filenames = []
     dataframes = []

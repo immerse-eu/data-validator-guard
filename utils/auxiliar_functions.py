@@ -54,13 +54,31 @@ def filter_only_participants(df, id_column):
 
 # In the new processed data from GH, IDs from Clinicians and Admin are combined in some files.
 def export_clinicians_and_participants(directory):
-    for file in files_to_filter:
+    collected = []
+
+    for file in os.listdir(directory):
+        if not file.endswith(".csv"):
+            continue
         filepath = os.path.join(directory, file)
-        print("filepath = ", filepath)
-        df = pd.read_csv(filepath, sep=";")
-        file_to_export = filter_only_participants(df, "participant_identifier")
-        file_to_export.to_csv(file, sep=";", index=False)
-        print(f"Exported {file}")
+        df = pd.read_csv(filepath, sep=";", low_memory=False)
+
+        if "participant_identifier" not in df.columns:
+            print(f"Skipping {file}: missing participant_identifier column")
+            continue
+        ids = df["participant_identifier"].dropna().astype(str)
+        collected.append(ids)
+
+    if not collected:
+        print("No identifiers extracted.")
+        return
+
+    all_ids = pd.concat(collected, ignore_index=True)
+    all_ids = all_ids.drop_duplicates()
+    output_path = os.path.join(os.path.dirname(directory), "extract_unique_ids.csv")
+    all_ids.to_csv(output_path, sep=";", index=False, header=["participant_identifier"])
+
+    print(f"Unique IDs exported: {len(all_ids)}")
+    print(f"Saved to {output_path}")
 
 
 def convert_file_to_csv(filepath):
@@ -124,6 +142,7 @@ def extract_unique_identifiers(filepath, column_name):
         # unique_values_df.to_csv(output_file, sep=';', index=False, quoting=csv.QUOTE_ALL)
         print(f"Exported {len(unique_values_df)} from '{column_name}' unique IDs.")
 
+
 def concatenate_dataframes(directory):
     dfs = []
 
@@ -165,7 +184,6 @@ def get_unique_values(filepath):
         unique_values.to_excel('unique_values.xlsx', index=False)
 
 
-
 def concat_files(directory, system):
     concatenated_files = []
     dataframes, filenames = read_all_dataframes(directory, system)
@@ -183,3 +201,4 @@ def concat_files(directory, system):
 # concat_files(directory=ID_CLEAN_IMMERSE_PATH, system='movisens_fidelity')
 # create_codebook(ID_CLEAN_IMMERSE_PATH, 'maganamed')
 # merge_dataframes(f1_path, f2_path, "dmmh")
+# export_clinicians_and_participants(directory)
