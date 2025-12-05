@@ -1,19 +1,16 @@
 import os
 import pandas as pd
-
 from cleaning.general_id_cleaning import DataCleaning
 from config.config_loader import load_config_file
 from validation.general_validation import DataValidator
 from validation.maganamed_validation import VALID_SITE_CODES_AND_CENTER_NAMES
 from maganamed import run_validation_maganamed, execute_id_corrections_maganamed
 from utils.rulebook import create_merged_esm_ids_rulebook
+from database.db import create_database, clone_database
 from cleaning.cleaning_db import cleaning_db
 from movisensxs import run_movisensxs_validation
 
 valid_center_names = VALID_SITE_CODES_AND_CENTER_NAMES.values()
-
-DB_PATH = load_config_file('researchDB', 'db_path')
-NEW_DB_PATH = load_config_file('researchDB', 'cleaned_db')
 
 ISSUES_PATH = load_config_file('reports', 'issues')
 CHANGES_PATH = load_config_file('reports', 'changes')
@@ -21,15 +18,17 @@ FIXES_PATH = load_config_file('reports', 'fixes')
 
 IDS_REFERENCE_PATH = load_config_file('auxiliarFiles', 'ids_reference')  # RedCap IDs from Anita
 IDS_TO_VERIFY_PATH = load_config_file('auxiliarFiles', 'ids_to_verify')  # Extracted IDs only from original files.
-ID_CLEANING_IMMERSE_PATH = load_config_file('updated_source',
-                                            'immerse_clean')  # Here are stored a copy of sources which are changing
+ID_CLEANING_IMMERSE_PATH = load_config_file('updated_source','immerse_clean')  # Copy of files which are changing
 
 RULEBOOK_IDS_MAGANAMED_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_maganamed')
 RULEBOOK_IDS_MOVISENS_ESM_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_esm')
 RULEBOOK_IDS_MOVISENS_FIDELITY_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_fidelity')
-RULEBOOK_IDS_MOVISENS_SENSING_PATH = load_config_file('','')  # TODO
-RULEBOOK_IDS_REDCAP_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_redcap_data_request')  # Rulebook tailored according DataRequest31
+RULEBOOK_IDS_MOVISENS_SENSING_PATH = load_config_file('','')
+RULEBOOK_IDS_REDCAP_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_redcap_data_request')  # Rulebook DataRequest31
 RULEBOOK_IDS_DMMH_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_dmmh')
+
+TEMPORAL_SQL_DB_PATH = load_config_file('researchDB', 'db_path')
+FINAL_SQL_DB_PATH = load_config_file('researchDB', 'cleaned_db')
 
 
 # General initial rule: ID validation
@@ -90,7 +89,7 @@ def run_id_validation_from_df(redcap_id_reference_path, rulebook, extracted_ids_
         create_merged_esm_ids_rulebook()  # TODO: After the file is created, changes must be added manually!
 
 
-def execute_immerse_id_validation():
+def execute_immerse_id_cleaning():
     """
     This function uses the extracted original IDS from each system and runs ID validation using the following files:
     - IDS_REFERENCE: REDCap Data Source from Maganamed. The most 'reliable' source available of IDS.
@@ -136,17 +135,19 @@ def execute_immerse_id_validation():
 
 def main():
 
-    # # --- Rule 0: ID validation.
-    execute_immerse_id_validation()
+    # # --- Step 1: IDs clearance per system.
+    execute_immerse_id_cleaning()
 
-    # # --- MAGANAMED:
-    # Run all rules defined in IMMERSE DVP-V7.
+    # # --- Step 2: Import generated files from step1 into a temporal DB.
+    create_database(TEMPORAL_SQL_DB_PATH, 'temporal_research_database')
+
+    # # --- Step 3: Validation of Maganamed & MovisensXS from temporal DB.
     run_validation_maganamed()
-    cleaning_db(NEW_DB_PATH, system='maganamed')
+    clone_database(TEMPORAL_SQL_DB_PATH, FINAL_SQL_DB_PATH, "validated_research_database")
+    cleaning_db(FINAL_SQL_DB_PATH, system='maganamed')
 
-    # # --- MOVISENSXS
-    # Run all rules for Movisens-ESM & Movisens-Sensing defined in IMMERSE DVP-V7.
     run_movisensxs_validation()
+    cleaning_db(FINAL_SQL_DB_PATH, system='movisens')
 
 
 if __name__ == "__main__":

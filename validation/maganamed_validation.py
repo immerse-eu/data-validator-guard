@@ -75,7 +75,7 @@ def export_table(df_to_export, table_name):
     filepath = os.path.join(output_excel_path, excel_filename)
     df_to_export.to_excel(filepath, index=False)
     df_to_export.to_csv(filepath.replace(".xlsx", ".csv"), sep=';', index=False)
-    print(f"\n Successfully '{excel_filename}' exported.")
+    print(f"\n Successfully '{excel_filename}' exported {output_excel_path}.")
 
 
 class MaganamedValidation:

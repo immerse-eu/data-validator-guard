@@ -9,19 +9,6 @@ DB_PATH = load_config_file('researchDB', 'db_path')
 NEW_DB_PATH = load_config_file('researchDB', 'cleaned_db')
 
 
-def clone_database(original_path, new_path, new_name):
-    print("cloning database...")
-    os.makedirs(new_path, exist_ok=True)
-    new_path = os.path.join(new_path, new_name)
-
-    if os.path.exists(new_path):
-        print(f"Database already exists at: {new_path}, overwriting.")
-    with sqlite3.connect(original_path) as source_conn:
-        with sqlite3.connect(new_path) as dest_conn:
-            source_conn.backup(dest_conn)
-            print(f"Database cloned successfully to {new_path}")
-
-
 def get_all_tables(path_db):
     conn = sqlite3.connect(path_db)
     cursor = conn.cursor()
@@ -127,5 +114,3 @@ def cleaning_db(path_db, system):
         conn.close()
 
 
-# clone_database(DB_PATH, NEW_DB_PATH, "research_database_validated_V2_2025.db")
-# cleaning_db(NEW_DB_PATH, system='maganamed')
