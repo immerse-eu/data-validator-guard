@@ -7,14 +7,13 @@ from sqlite3 import DatabaseError, Error
 from config.config_loader import load_config_file
 from pandas.errors import DatabaseError
 
-
-TEMPORAL_SQL_DB_PATH = load_config_file('researchDB', 'db_path')
-temporal_path = os.path.join(TEMPORAL_SQL_DB_PATH, '')
+TEMPORAL_SQL_DB_DIR = load_config_file('researchDB', 'db_path')
+temporal_sql_db_path = os.path.join(TEMPORAL_SQL_DB_DIR, '.db')
 
 
 def connect_and_fetch_table(table_name):
-    sql_connection = sqlite3.connect(temporal_path)
-    print(temporal_path)
+    sql_connection = sqlite3.connect(temporal_sql_db_path)
+    print("Connection established.")
 
     try:
         query = f"SELECT * FROM `{table_name}`"
@@ -32,7 +31,7 @@ def connect_and_fetch_table(table_name):
 
 def replace_table(df, table_name):
     print(f"Replacing {table_name}...")
-    conn = sqlite3.connect(temporal_path)
+    conn = sqlite3.connect(temporal_sql_db_path)
     df.to_sql(table_name, conn, if_exists="replace", index=False)
     conn.close()
 
@@ -117,10 +116,24 @@ def clone_database(original_path, new_path, new_name):
     timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
     complete_db_filename = f"{new_name}_{timestamp}.db"
     new_path = os.path.join(new_path, complete_db_filename)
-
     if os.path.exists(new_path):
         print(f"Database already exists at: {new_path}, overwriting.")
     with sqlite3.connect(original_path) as source_conn:
         with sqlite3.connect(new_path) as dest_conn:
             source_conn.backup(dest_conn)
             print(f"Database cloned successfully to {new_path}")
+
+
+def list_tables_db():
+    abs_path = os.path.abspath(temporal_sql_db_path)
+    if not os.path.exists(abs_path):
+        raise FileNotFoundError(f"Database file not found: {abs_path}")
+    conn = sqlite3.connect(abs_path)
+    try:
+        df = pd.read_sql_query(
+            "SELECT name FROM sqlite_master WHERE type='table';",
+            conn
+        )
+        return df['name'].tolist()
+    finally:
+        conn.close()
