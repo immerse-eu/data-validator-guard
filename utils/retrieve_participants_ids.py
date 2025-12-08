@@ -1,11 +1,10 @@
 import os
 import pandas as pd
 from pathlib import Path
-
 from database.db import connect_and_fetch_table
 from config.config_loader import load_config_file
 
-NEW_DB_PATH = load_config_file('researchDB', 'cleaned_db')
+FINAL_SQL_DB_DIR = load_config_file('researchDB', 'clean_db')
 DB_CATALOGUE_PATH = load_config_file('researchDB', 'db_catalogue')
 IMMERSE_CLEANING_SOURCE = load_config_file('updated_source', 'immerse_clean')
 

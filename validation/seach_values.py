@@ -3,8 +3,9 @@ import yaml
 import os
 from config.config_loader import load_config_file
 
-DB_PATH = load_config_file('researchDB', 'db_path')
-NEW_DB_PATH = load_config_file('researchDB', 'cleaned_db')
+TEMPORAL_SQL_DB_DIR = load_config_file('researchDB', 'db_path')
+FINAL_SQL_DB_DIR = load_config_file('researchDB', 'clean_db')
+
 
 def search_db_tables(db_path, search_value):
     conn = sqlite3.connect(db_path)
@@ -45,4 +46,4 @@ def search_db_tables(db_path, search_value):
 def execute_search(search_values_list):
     for search_value in search_values_list:
         print("searching value:", search_value)
-        search_db_tables(NEW_DB_PATH, search_value)  # Change to DB_PATH when necessary
+        search_db_tables(FINAL_SQL_DB_DIR, search_value)  # Change to DB_PATH when necessary
