@@ -11,8 +11,8 @@ from cleaning.general_id_cleaning import DataCleaning
 CSRI_list = ["CSRI", "CSRI_GE", "CSRI_BE", "CSRI_SK"]
 valid_center_names = VALID_SITE_CODES_AND_CENTER_NAMES.values()
 
-DB_PATH = load_config_file('researchDB', 'db_path')
-NEW_DB_PATH = load_config_file('researchDB', 'cleaned_db')
+TEMPORAL_SQL_DB_DIR = load_config_file('researchDB', 'db_path')
+FINAL_SQL_DB_DIR = load_config_file('researchDB', 'clean_db')
 
 
 def run_general_validation(table):

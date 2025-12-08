@@ -7,7 +7,6 @@ from utils.retrieve_participants_ids import read_all_dataframes
 ISSUES_PATH = load_config_file('reports', 'issues')
 CHANGES_PATH = load_config_file('reports', 'changes')
 FIXES_PATH = load_config_file('reports', 'fixes')
-NEW_DB_PATH = load_config_file('researchDB', 'cleaned_db')
 
 IDS_REFERENCE_PATH = load_config_file('auxiliarFiles', 'ids_reference')  # From Anita
 IMMERSE_CLEANING_SOURCE = load_config_file('updated_source', 'immerse_clean')
