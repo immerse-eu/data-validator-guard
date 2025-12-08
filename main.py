@@ -6,7 +6,7 @@ from validation.general_validation import DataValidator
 from validation.maganamed_validation import VALID_SITE_CODES_AND_CENTER_NAMES
 from maganamed import run_validation_maganamed, execute_id_corrections_maganamed
 from utils.rulebook import create_merged_esm_ids_rulebook
-from database.db import create_database, clone_database
+from database.db import create_database, clone_database, list_tables_db, temporal_sql_db_path
 from cleaning.cleaning_db import cleaning_db
 from movisensxs import run_movisensxs_validation
 
@@ -27,8 +27,8 @@ RULEBOOK_IDS_MOVISENS_SENSING_PATH = load_config_file('','')
 RULEBOOK_IDS_REDCAP_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_redcap_data_request')  # DataRequest31
 RULEBOOK_IDS_DMMH_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_dmmh')
 
-TEMPORAL_SQL_DB_PATH = load_config_file('researchDB', 'db_path')  # DB to apply additions from validation
-FINAL_SQL_DB_PATH = load_config_file('researchDB', 'clean_db')    # DB to clean incidences from validation
+TEMPORAL_SQL_DB_DIR = load_config_file('researchDB', 'db_path')  # DB to apply additions from validation
+FINAL_SQL_DB_DIR = load_config_file('researchDB', 'clean_db')    # DB to clean incidences from validation
 
 
 # General initial rule: ID validation
@@ -50,6 +50,7 @@ def general_validation_ids(df_control, rulebook, df_to_validate, file):
         general_id_cleaning.execute_corrections_to_original_tables(ID_CLEANING_IMMERSE_PATH, "maganamed")
 
     elif "movisens_esm" in file:
+        print("Start cleaning movisens_esm...")
         updated_rulebook = general_id_cleaning.prepare_ids_correction(rulebook, CHANGES_PATH, file)
         general_id_cleaning.changes_to_apply_when_using_rulebook(updated_rulebook, 'movisens_esm')
         general_id_cleaning.execute_corrections_to_original_tables(ID_CLEANING_IMMERSE_PATH, 'movisens_esm')
@@ -63,23 +64,23 @@ def general_validation_ids(df_control, rulebook, df_to_validate, file):
     elif "dmmh" in file:
         print("Cleaning DMMH")
         general_id_cleaning.prepare_ids_correction(rulebook, CHANGES_PATH, file)
-        general_id_cleaning.changes_to_apply_when_using_rulebook(rulebook, 'dmmh')  # to verify
+        general_id_cleaning.changes_to_apply_when_using_rulebook(rulebook, 'dmmh')
         general_id_cleaning.execute_corrections_to_original_tables(ID_CLEANING_IMMERSE_PATH, 'dmmh')
 
     elif "redcap" in file:
         print("Cleaning Redcap IDS...")
         general_id_cleaning.prepare_ids_correction(rulebook, CHANGES_PATH, file)
-        general_id_cleaning.changes_to_apply_when_using_rulebook(rulebook, 'redcap')  # to verify
+        general_id_cleaning.changes_to_apply_when_using_rulebook(rulebook, 'redcap')
         general_id_cleaning.execute_corrections_to_original_tables(ID_CLEANING_IMMERSE_PATH, 'redcap')
 
     else:
         print("IMMERSE system not recognised in 'dmmh', 'maganamed', 'movisens_esm', 'movisens_sensing', or 'redcap' ")
 
 
-# Function to run ID validation from CSV/EXCEL files instead of SQL tables
 def run_id_validation_from_df(redcap_id_reference_path, rulebook, extracted_ids_df, extracted_ids_filename):
-    if os.path.exists(redcap_id_reference_path) and os.path.exists(rulebook):
+    # Function to run ID validation from CSV/EXCEL files instead of SQL tables
 
+    if os.path.exists(redcap_id_reference_path) and os.path.exists(rulebook):
         print("Loading REDCap reference IDs path:", redcap_id_reference_path)
         print("Loading rulebook path: ", rulebook)
         print("Loading extracted IDs to validate:", extracted_ids_filename)
@@ -133,10 +134,20 @@ def execute_immerse_id_cleaning():
 
         if filename.startswith("extracted") and "movisens_sensing" in filename:
             print("Movisens_Sensing", filename)
-            run_id_validation_from_df(IDS_REFERENCE_PATH, RULEBOOK_IDS_MOVISENS_SENSING_PATH, IDS_TO_VERIFY_PATH, filename)  # TODO
+            run_id_validation_from_df(
+                redcap_id_reference_path=IDS_REFERENCE_PATH,
+                rulebook=RULEBOOK_IDS_MOVISENS_SENSING_PATH,
+                extracted_ids_df=IDS_TO_VERIFY_PATH,
+                extracted_ids_filename=filename
+            )
 
-        if filename.startswith("extracted") and "dmmh" in filename:  # TODO
-            run_id_validation_from_df(IDS_REFERENCE_PATH, RULEBOOK_IDS_DMMH_PATH, IDS_TO_VERIFY_PATH, filename)
+        if filename.startswith("extracted") and "dmmh" in filename:
+            run_id_validation_from_df(
+                redcap_id_reference_path=IDS_REFERENCE_PATH,
+                rulebook=RULEBOOK_IDS_DMMH_PATH,
+                extracted_ids_df=IDS_TO_VERIFY_PATH,
+                extracted_ids_filename=filename
+            )
 
         if filename.startswith("extracted") and "redcap" in filename:
             print("REDCap data request.", filename)
@@ -149,15 +160,15 @@ def main():
     execute_immerse_id_cleaning()
 
     # # --- Step 2: Import generated files from step1 into a temporal DB.
-    create_database(TEMPORAL_SQL_DB_PATH, 'temporal_research_database')
+    create_database(TEMPORAL_SQL_DB_DIR, 'temporal_research_database')
 
-    # --- Step 3: Validation of Maganamed & MovisensXS from temporal DB.
+    # # --- Step 3: Validation of Maganamed & MovisensXS from temporal DB.
     run_validation_maganamed()
-    clone_database(TEMPORAL_SQL_DB_PATH, FINAL_SQL_DB_PATH, "validated_research_database")
-    cleaning_db(FINAL_SQL_DB_PATH, system='maganamed')
+    clone_database(temporal_sql_db_path, FINAL_SQL_DB_DIR, "validated_research_database")
+    cleaning_db(FINAL_SQL_DB_DIR, system='maganamed')
 
     run_movisensxs_validation()
-    cleaning_db(FINAL_SQL_DB_PATH, system='movisens')
+    cleaning_db(FINAL_SQL_DB_DIR, system='movisens')
 
 
 if __name__ == "__main__":
