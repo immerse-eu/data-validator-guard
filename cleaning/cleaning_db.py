@@ -17,13 +17,11 @@ def get_all_tables(path_db):
     return table_names
 
 
-def get_changes_df_per_system(changes_filepath, sub_foder):
-    target_dir = os.path.join(changes_filepath, sub_foder)
-
-    if os.path.exists(target_dir):
-        for file in os.listdir(target_dir):
-            if file.startswith("05-12-2025_Kind") and file.endswith(".csv"): # TODO: Correct to the current file.
-                filepath = os.path.join(target_dir, file)
+def get_changes_maganamed(changes_filepath):
+    if os.path.exists(changes_filepath):
+        for file in os.listdir(changes_filepath):
+            if file.startswith("Kind") and file.endswith(".csv"):  # TODO: Correct to the current file.
+                filepath = os.path.join(changes_filepath, file)
                 return pd.read_csv(filepath, sep=";")
 
 
@@ -92,10 +90,11 @@ def apply_changes(conn, table, change_type, row):
 
 
 def cleaning_db(path_db, system):
-    db_path = next(os.path.join(path_db, file) for file in os.listdir(path_db) if file.endswith('.db'))
+    db_path = next(os.path.join(path_db, file) for file in os.listdir(path_db) if file.startswith('validated'))
+    print("Cleaning database...\n", db_path)
 
     if system == 'maganamed':
-        changes_df = get_changes_df_per_system(CHANGES_FILE_PATH, 'changes_maganamed')
+        changes_df = get_changes_maganamed(CHANGES_FILE_PATH)
         changes_df = changes_df[["participant_identifier", "site_validation_result", "Expected_value"]]
 
         # changes_df_by_id = changes_df[changes_df["id_validation_result"] == "ID-mismatch"]
