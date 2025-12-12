@@ -9,7 +9,7 @@ from utils.retrieve_participants_ids import read_all_dataframes
 
 IMMERSE_GENERAL_REPOSITORY_PATH = load_config_file('immerse_general_repository', 'general_repository')
 IMMERSE_ORIGINAL_SOURCE_PATH = load_config_file('original_source', 'immerse')
-ID_CLEAN_IMMERSE_PATH = load_config_file('updated_source', 'immerse_clean')
+ID_CLEAN_IMMERSE_PATH = load_config_file('cleaning_processed_source', 'immerse_general')
 
 esm_files_to_exclude = ["codebook.xlsx", "Fidelity_BE.xlsx", "Fidelity_c_UK.xlsx", "Fidelity_GE.xlsx",
                     "Fidelity_SK.xlsx", "Fidelity_UK.xlsx", "IMMERSE_Fidelity_SK_Kosice.xlsx", "Sensing.xlsx"]

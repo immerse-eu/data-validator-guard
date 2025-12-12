@@ -9,7 +9,7 @@ CHANGES_PATH = load_config_file('reports', 'changes')
 FIXES_PATH = load_config_file('reports', 'fixes')
 
 IDS_REFERENCE_PATH = load_config_file('auxiliarFiles', 'ids_reference')  # From Anita
-IMMERSE_CLEANING_SOURCE = load_config_file('updated_source', 'immerse_clean')
+IMMERSE_CLEANING_SOURCE = load_config_file('cleaning_processed_source', 'immerse_general')
 
 fidelity_files = [
     "Fidelity_BE.xlsx",

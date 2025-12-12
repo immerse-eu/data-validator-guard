@@ -103,10 +103,10 @@ def run_validation_maganamed():
     # -- Rule 1: Apply validation for 'Kind-of-participant'.
     table_name = "Kind-of-participant"
     read_kind_participants_df = connect_and_fetch_table(table_name)
-    filter_read_kind_participants_df = filter_only_participants(read_kind_participants_df, "participant_identifier")
-    is_validation_approved = run_general_validation(filter_read_kind_participants_df)
+    # filter_read_kind_participants_df = filter_only_participants(read_kind_participants_df, "participant_identifier") #  todo: add function to data releases.
+    is_validation_approved = run_general_validation(read_kind_participants_df)
     if is_validation_approved:
-        run_rule_one(filter_read_kind_participants_df, table_name)
+        run_rule_one(read_kind_participants_df, table_name)
 
     # -- Rule 8: CSRI Language control and questionnaires completion
     # Part 1.

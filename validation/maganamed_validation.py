@@ -57,7 +57,7 @@ output_csv_path = "validation_issues.csv"  # TODO: homologate to common "issues"
 
 
 def import_custom_csr_df_with_language_selection():
-    with open("./config/config.yaml", "r", encoding="utf-8") as path:
+    with open("./config/config.yaml", "r", encoding="utf-8") as path:  # TODO: change according to config yaml file
         config = yaml.safe_load(path)
     csri = config['auxiliarFiles']['csri']
 

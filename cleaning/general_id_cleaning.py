@@ -1,7 +1,8 @@
-import csv
 import os
 import traceback
 import warnings
+from typing import Any, Optional, Union, Dict
+
 import pandas as pd
 from pathlib import Path
 from utils.rulebook import get_columns_from_id_reference
@@ -57,9 +58,48 @@ rename_fidelity_columns_dict = {
 }
 
 
+# Small helpers kept local and minimal to avoid changing external behaviour
+def _normalize_key(v):
+    if v is None:
+        return None
+    try:
+        if pd.isna(v):
+            return None
+    except Exception:
+        pass
+    return str(v).strip()
+
+
+def _normalize_numberish(v):
+    """Turn NaN->None, 1.0->1, numeric strings to numbers when possible, else stripped string."""
+    if v is None:
+        return None
+    try:
+        if pd.isna(v):
+            return None
+    except Exception:
+        pass
+    if isinstance(v, float):
+        if abs(v - int(v)) < 1e-9:
+            return int(v)
+        return v
+    if isinstance(v, int):
+        return v
+    if isinstance(v, str):
+        s = v.strip()
+        try:
+            f = float(s)
+            if abs(f - int(f)) < 1e-9:
+                return int(f)
+            return f
+        except Exception:
+            return s
+    return v
+
+
 class DataCleaning:
 
-    def __init__(self, df):
+    def __init__(self, df, debug: bool = False):
         self.df = df
         self.changes_df = df.copy()
         self.clean_df = df.copy()
@@ -71,6 +111,7 @@ class DataCleaning:
         self.assign_id_to_T1 = set()
         self.assign_id_to_T2 = set()
         self.assign_id_to_T3 = set()
+        self.debug = debug
 
     # ---> Step 2.
     # This function identifies the KEYs to apply changes (add, delete, update, etc...) in original data.
@@ -92,171 +133,223 @@ class DataCleaning:
             correct_participant_identifier = row.get('correct_participant_identifier')
             action = str(row['action']).strip()
 
+            # normalize keys immediately
+            key_norm = _normalize_key(participant_identifier)
+
             if "esm" in system:
-                participant_number = row['participant_number']
-                visit_code = row['VisitCode']
-                site_code = row['SiteCode']
-                if participant_identifier:
-                    key = (participant_identifier, participant_number, visit_code, site_code)
-                if not site_code and participant_identifier:
+                participant_number = row.get('participant_number')
+                visit_code = row.get('VisitCode')
+                site_code = row.get('SiteCode')
+                # Normalized elements
+                participant_number = _normalize_key(participant_number)
+                visit_code = _normalize_key(visit_code)
+                site_code = _normalize_key(site_code)
+                if key_norm:
+                    key = (key_norm, participant_number, visit_code, site_code)
+                else:
                     key = (participant_number, visit_code)
 
             elif any(value in system for value in alternative_systems):
-                key = participant_identifier
+                key = key_norm
             else:
                 key = None
 
             # This section identifies those IDs which will require to apply changes according to each type of action.
             if action == 'delete' and key is not None:
                 self.delete_ids.add(key)
+                continue
 
             if action.startswith('add') and key is not None:
                 self.add_ids[key] = correct_participant_identifier
+                continue
 
-            if action.startswith('skip') or action.startswith('check manually') and key is not None:
+            if (action.startswith('skip') or action.startswith('check manually')) and key is not None:
                 continue
 
             if action.startswith('use') and key is not None:  # TODO:Fix merging
                 continue
-                # if "T0" in action:
-                #     self.assign_id_to_T0[key] = correct_participant_identifier
-                # if "T1" in action:
-                #     self.assign_id_to_T1[key] = correct_participant_identifier
-                # if "T2" in action:
-                #     self.assign_id_to_T2[key] = correct_participant_identifier
-                # if "T3" in action:
-                #     self.assign_id_to_T3[key] = correct_participant_identifier
 
             if action.startswith('update') and key is not None:
-                self.update_ids[key] = correct_participant_identifier
+                '''
+                Minimal targeted change: store structured dicts for maganamed so extended update
+                can fill unit/condition/randomize safely.
+                '''
+                if system == 'maganamed':
+                    self.update_ids[key] = {
+                        'correct_participant_identifier': correct_participant_identifier,
+                        'unit': row.get('unit'),
+                        'condition': row.get('condition'),
+                        'randomize': row.get('randomize')
+                    }
+                    # Also index under corrected id if present and different (tolerate variants)
+                    corrected_norm = _normalize_key(correct_participant_identifier)
+                    if corrected_norm and corrected_norm != key and corrected_norm not in self.update_ids:
+                        self.update_ids[corrected_norm] = self.update_ids[key]
+                else:
+                    self.update_ids[key] = correct_participant_identifier
+                continue
 
             if action.startswith('merge') and key is not None:  # TODO: Check correctness of merging
                 self.merge_ids[key] = correct_participant_identifier
                 continue
-                # extract_participant_number_to_merge = action.split("merge")[1].strip()
-                # if "-" in extract_participant_number_to_merge:
-                #     participant_numbers_to_merge = extract_participant_number_to_merge.split("-")
-                #     for part_number in participant_numbers_to_merge:
-                #         self.merge_ids[part_number.strip()] = correct_participant_identifier
-                #         print('extract_participant_number_to_merge', part_number, correct_participant_identifier)
 
-        print(f"\n- {len(self.delete_ids)} IDs to delete:", self.delete_ids,
-              f"\n- {len(self.update_ids)} IDS to update: ", self.update_ids,
-              f"\n- {len(self.add_ids)} IDs to add: ", self.add_ids,
-              f"\n- {len(self.merge_ids)} IDs to merge: ", self.merge_ids)
+        if self.debug:
+            print(f"DEBUG: "
+                  f"delete_ids={len(self.delete_ids)} "
+                  f"update_ids={len(self.update_ids)} "
+                  f"add_ids={len(self.add_ids)} "
+                  f"merge_ids={len(self.merge_ids)}")
 
     # Apply changes from rulebook
     def _apply_changes_from_rulebook(self, current_df, participant_identifier, participant_number, filename, system):
         current_immerse_df = current_df.copy()
 
+        primary_identifier = None
         if 'movisens_fidelity' in system:
             primary_identifier = participant_identifier
-            print("Primary identifier: ", primary_identifier)
             if primary_identifier in current_df.columns:
-                current_immerse_df['correct_participant_id'] = current_immerse_df[primary_identifier].dropna()
+                current_immerse_df['correct_participant_id'] = current_immerse_df[primary_identifier].where(~current_immerse_df[primary_identifier].isna(), None)
+            else:
+                current_immerse_df['correct_participant_id'] = None
         else:
-            current_immerse_df['correct_participant_id'] = current_immerse_df[participant_identifier]
+            current_immerse_df['correct_participant_id'] = current_immerse_df.get(participant_identifier)
 
         # Case 1: Deletion IDs
         if self.delete_ids:
-            print('IDs to delete: ', self.delete_ids)
             if "movisens_esm" in system:
                 # TODO: Verify functionality
                 current_immerse_df = current_immerse_df[~current_immerse_df.apply(
-                    lambda row: (row[participant_identifier],
-                                 row[participant_number],
-                                 row['VisitCode'],
-                                 row['SiteCode']) in self.delete_ids, axis=1)]
-            if 'movisens_fidelity' in system:
+                    lambda row: (row.get(participant_identifier),
+                                 row.get(participant_number),
+                                 row.get('VisitCode'),
+                                 row.get('SiteCode')) in self.delete_ids, axis=1)]
+            elif 'movisens_fidelity' in system and primary_identifier:
                 current_immerse_df = current_immerse_df[
-                       ~current_immerse_df.apply(lambda row: str(row[primary_identifier]) in self.delete_ids, axis=1)]
+                       ~current_immerse_df.apply(lambda row: _normalize_key(row.get(primary_identifier)) in self.delete_ids, axis=1)]
             else:
                 current_immerse_df = current_immerse_df[~current_immerse_df.apply(
-                    lambda row: (str(row[participant_identifier])) in self.delete_ids, axis=1)]
+                    lambda row: _normalize_key(row.get(participant_identifier)) in self.delete_ids, axis=1)]
 
         # Case 2: Merging IDs
         if self.merge_ids:
-            print("IDs to Merge: ", self.merge_ids)
             if "movisens_esm" in system:
                 current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
-                    lambda row: self.merge_ids.get(row[participant_number], row['correct_participant_id']), axis=1)
+                    lambda row: self.merge_ids.get(row.get(participant_number), row.get('correct_participant_id')), axis=1)
             else:
                 current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
-                    lambda row: self.merge_ids.get(row[participant_identifier], row['correct_participant_id']), axis=1)
+                    lambda row: self.merge_ids.get(_normalize_key(row.get(participant_identifier)), row.get('correct_participant_id')), axis=1)
 
         # Case 3: Adding IDS
         if self.add_ids:
-            print("IDs to Add: ", self.add_ids)
             if "movisens_esm" in system:
-
                 normalize_ids = {
-                    tuple(str(x).strip() for x in k): value
+                    tuple(_normalize_key(x) for x in k): value
                     for k, value in self.add_ids.items()
                 }
 
                 def lookup_row(row):
                     key = (
-                        str(row[participant_identifier]).strip(),
-                        str(row[participant_number]).strip(),
-                        str(row['VisitCode']).strip(),
-                        str(row['SiteCode']).strip()
+                        _normalize_key(row.get(participant_identifier)),
+                        _normalize_key(row.get(participant_number)),
+                        _normalize_key(row.get('VisitCode')),
+                        _normalize_key(row.get('SiteCode'))
                     )
                     return normalize_ids.get(key, row.get('correct_participant_id'))
 
                 current_immerse_df['correct_participant_id'] = current_immerse_df.apply(lookup_row, axis=1)
             else:
                 current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
-                    lambda row: self.add_ids.get(row[participant_number], row['correct_participant_id'])
-                    if pd.isna(row['correct_participant_id']) or str(row['correct_participant_id']).strip() == ""
-                    else row['correct_participant_id'], axis=1)
+                    lambda row: self.add_ids.get(_normalize_key(row.get(participant_number)), row.get('correct_participant_id'))
+                    if pd.isna(row.get('correct_participant_id')) or str(row.get('correct_participant_id')).strip() == ""
+                    else row.get('correct_participant_id'), axis=1)
 
         # Case 4: Update IDS
         if self.update_ids:
-            print("Current IDs to update : ", self.update_ids)
-            if "movisens_esm" in system:
+            if self.debug:
+                print("DEBUG: Current IDs to update : ", list(self.update_ids.items())[:10])
 
+            if "movisens_esm" in system:
                 normalize_ids = {
-                    tuple(str(x).strip() for x in k): value
+                    tuple(_normalize_key(x) for x in k): value
                     for k, value in self.update_ids.items()
                 }
 
                 def lookup_row(row):
                     key = (
-                        str(row[participant_identifier]).strip(),
-                        str(row[participant_number]).strip(),
-                        str(row['VisitCode']).strip(),
-                        str(row['SiteCode']).strip()
+                        _normalize_key(row.get(participant_identifier)),
+                        _normalize_key(row.get(participant_number)),
+                        _normalize_key(row.get('VisitCode')),
+                        _normalize_key(row.get('SiteCode'))
                     )
                     return normalize_ids.get(key, row.get('correct_participant_id'))
                 current_immerse_df['correct_participant_id'] = current_immerse_df.apply(lookup_row, axis=1)
 
             elif "maganamed" in system:
+                # Apply corrected id (prefer structured dicts when present)
+                def maganamed_lookup(row):
+                    key = _normalize_key(row.get(participant_identifier))
+                    val = self.update_ids.get(key)
+                    if isinstance(val, dict):
+                        return val.get('correct_participant_identifier') or row.get('correct_participant_id')
+                    elif val is not None:
+                        return val
+                    # try corrected id key fallback
+                    corr = _normalize_key(row.get('correct_participant_id'))
+                    return self.update_ids.get(corr, row.get('correct_participant_id'))
+
+                current_immerse_df['correct_participant_id'] = current_immerse_df.apply(maganamed_lookup, axis=1)
+
+            elif "movisens_fidelity" in system and primary_identifier:
                 current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
-                    lambda row: self.update_ids.get((str(row[participant_identifier])),
-                                                    row['correct_participant_id']), axis=1)
-            elif "movisens_fidelity" in system:
-                current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
-                    lambda row: self.update_ids.get((str(row[primary_identifier])),
-                                                    row['correct_participant_id']), axis=1)
+                    lambda row: self.update_ids.get(_normalize_key(row.get(primary_identifier)),
+                                                    row.get('correct_participant_id')), axis=1)
             else:
                 current_immerse_df['correct_participant_id'] = current_immerse_df.apply(
-                    lambda row: self.update_ids.get((str(row[participant_identifier])),
-                                                    row['correct_participant_id']), axis=1)
+                    lambda row: self.update_ids.get(_normalize_key(row.get(participant_identifier)),
+                                                    row.get('correct_participant_id')), axis=1)
 
             # Extended update include cases where values for "unit, "condition" or "randomize" values are missing.
             def apply_extended_update_id(row):
-                original_id = str(row[participant_identifier])
-                if original_id in self.update_ids:
-                    update_row = self.update_ids[original_id]
-                    print('original_id', original_id, "update_id", update_row)
-                    row['correct_participant_id'] = update_row
+                original_id = _normalize_key(row.get(participant_identifier))
+                if original_id is None:
+                    return row
+
+                update_row = self.update_ids.get(original_id)
+                # fallback to corrected id key if not found under original form
+                if update_row is None:
+                    corr = _normalize_key(row.get('correct_participant_id'))
+                    update_row = self.update_ids.get(corr)
+
+                if update_row is None:
+                    return row
+
+                # If update_row is dict (structured maganamed), use fields; otherwise treat as legacy string that only sets id
+                if isinstance(update_row, dict):
+                    if self.debug:
+                        print('DEBUG: original_id', original_id, "update_id", update_row)
+                    corrected = update_row.get('correct_participant_identifier')
+                    if corrected is not None and str(corrected).strip() != '':
+                        row['correct_participant_id'] = corrected
 
                     for col in ['unit', 'condition', 'randomize']:
-                        value = row[col]
-                        if pd.isna(value) or str(value).strip() == '':
-                            update_value = update_row
-                            if update_value is not None:
-                                row[col] = update_value
+                        value = row.get(col)
+                        if not (pd.isna(value) or str(value).strip() == ''):
+                            continue
+                        update_value = update_row.get(col)
+                        if update_value is None:
+                            continue
+                        norm_update = _normalize_numberish(update_value)
+                        if norm_update is None:
+                            continue
+                        # guard: do not assign the participant id string into these columns
+                        if str(norm_update).strip() == str(original_id).strip():
+                            if self.debug:
+                                print(f"DEBUG-WARNING: skipping assignment of participant id string into {col} for {original_id}")
+                            continue
+                        row[col] = norm_update
+                else:
+                    # legacy/plain case: only set corrected id
+                    row['correct_participant_id'] = update_row
                 return row
 
             if "maganamed" in system:
@@ -264,48 +357,73 @@ class DataCleaning:
 
         # Case 5: Specific IDs according T-files
         if '_T0_' in filename and self.assign_id_to_T0:
-            # print("T0 IDs: ", self.assign_id_to_T0)
             current_immerse_df[participant_identifier] = current_immerse_df.apply(
-                lambda row: self.assign_id_to_T0.get((row[participant_identifier], row[participant_number]),
-                                                     row[participant_identifier]), axis=1)
+                lambda row: self.assign_id_to_T0.get((row.get(participant_identifier), row.get(participant_number)),
+                                                     row.get(participant_identifier)), axis=1)
 
         if '_T1_' in filename and self.assign_id_to_T1:
-            print("T1 IDs: ", self.assign_id_to_T1)
             current_immerse_df[participant_identifier] = current_immerse_df.apply(
-                lambda row: self.assign_id_to_T1.get((row[participant_identifier], row[participant_number]),
-                                                     row[participant_identifier]), axis=1)
+                lambda row: self.assign_id_to_T1.get((row.get(participant_identifier), row.get(participant_number)),
+                                                     row.get(participant_identifier)), axis=1)
 
         if '_T2_' in filename and self.assign_id_to_T2:
-            print("T2 IDs: ", self.assign_id_to_T2)
             current_immerse_df[participant_identifier] = current_immerse_df.apply(
-                lambda row: self.assign_id_to_T2.get((row[participant_identifier], row[participant_number]),
-                                                     row[participant_identifier]), axis=1)
+                lambda row: self.assign_id_to_T2.get((row.get(participant_identifier), row.get(participant_number)),
+                                                     row.get(participant_identifier)), axis=1)
 
         if '_T3_' in filename and self.assign_id_to_T3:
-            print("T3 IDs: ", self.assign_id_to_T3)
             current_immerse_df[participant_identifier] = current_immerse_df.apply(
-                lambda row: self.assign_id_to_T3.get((row[participant_identifier], row[participant_number]),
-                                                     row[participant_identifier]), axis=1)
+                lambda row: self.assign_id_to_T3.get((row.get(participant_identifier), row.get(participant_number)),
+                                                     row.get(participant_identifier)), axis=1)
 
-        if "movisens_esm" in system:
-            current_immerse_df[primary_identifier] = current_immerse_df.pop("correct_participant_id")
-        current_immerse_df[participant_identifier] = current_immerse_df.pop("correct_participant_id")
+        if 'movisens_fidelity' in system and primary_identifier:
+            target_col = primary_identifier
+        else:
+            target_col = participant_identifier
+
+        current_immerse_df[target_col] = current_immerse_df.pop("correct_participant_id")
         return current_immerse_df
 
     # Complete ALL ids which 'unit', 'condition', 'randomize' are missing.
     def add_unit_site_and_randomized_values(self, cleand_df, id_column):
         reference_df = get_columns_from_id_reference()
-        reference_df.info()
+        if 'correct_participant_identifier' not in reference_df.columns:
+            raise KeyError("Reference table must contain 'correct_participant_identifier'")
+
+        # Normalize reference index and drop duplicates
+        reference_df['correct_participant_identifier'] = reference_df['correct_participant_identifier'].astype(str).str.strip()
+        if reference_df['correct_participant_identifier'].duplicated(keep=False).any():
+            if self.debug:
+                print("DEBUG: duplicates in id reference; keeping first occurrence for lookup")
+            reference_df = reference_df.drop_duplicates(subset=['correct_participant_identifier'], keep='first')
+
         ref_lookup = reference_df.set_index('correct_participant_identifier')
 
         def update_row(row):
-            original_id = str(row[id_column])
-            if original_id in ref_lookup.index:
-                update_info = ref_lookup.loc[original_id]
-                for col in ['unit', 'condition', 'randomize']:
-                    value = row.get(col)
-                    if pd.isna(value) or str(value).strip() == '':
-                        row[col] = update_info.get(col)
+            original_id_raw = row.get(id_column, '')
+            original_id = '' if pd.isna(original_id_raw) else str(original_id_raw).strip()
+            if original_id == '':
+                return row
+            if original_id not in ref_lookup.index:
+                return row
+            update_info = ref_lookup.loc[original_id]
+            for col in ['unit', 'condition', 'randomize']:
+                if col not in update_info.index:
+                    continue
+                current_val = row.get(col, None)
+                missing_in_row = pd.isna(current_val) or str(current_val).strip() == ''
+                if not missing_in_row:
+                    continue
+                ref_val = update_info.get(col)
+                norm_ref_val = _normalize_numberish(ref_val)
+                if norm_ref_val is None:
+                    continue
+                # Guard: do not set a participant id string into unit/condition/randomize
+                if str(norm_ref_val).strip() == original_id:
+                    if self.debug:
+                        print(f"DEBUG-WARNING: reference value equals id for {original_id} col {col}; skipping")
+                    continue
+                row[col] = norm_ref_val
             return row
 
         updated_df = cleand_df.apply(update_row, axis=1)

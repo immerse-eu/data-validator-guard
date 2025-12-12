@@ -6,7 +6,7 @@ from config.config_loader import load_config_file
 
 FINAL_SQL_DB_DIR = load_config_file('researchDB', 'clean_db')
 DB_CATALOGUE_PATH = load_config_file('researchDB', 'db_catalogue')
-IMMERSE_CLEANING_SOURCE = load_config_file('updated_source', 'immerse_clean')
+IMMERSE_CLEANING_SOURCE = load_config_file('cleaning_processed_source', 'immerse_general')
 
 esm_files_to_exclude = ["Fidelity_BE.xlsx", "Fidelity_c_UK.xlsx", "Fidelity_GE.xlsx",
                         "Fidelity_SK.xlsx", "Fidelity_UK.xlsx", "IMMERSE_Fidelity_SK_Kosice.xlsx"]
@@ -30,7 +30,6 @@ def read_all_dataframes(original_directory, immerse_system):
     # -- Get interested directory
     for root, dirs, files in os.walk(original_directory):
         if immerse_system in dirs:
-            current_sub_directory = os.path.join(root, immerse_system)
             if 'movisens_fidelity' in immerse_system:
                 dirs.remove(immerse_system)
                 merged_filepath = Path(current_sub_directory)/'2_movisens_fidelity_adjusted.csv'
@@ -40,7 +39,10 @@ def read_all_dataframes(original_directory, immerse_system):
                     df = pd.read_csv(merged_filepath, sep=separator)
                     dataframes.append(df)
                     return dataframes, filenames
+            else:
+                current_sub_directory = os.path.join(root, immerse_system)
 
+    print('current_sub_directory', current_sub_directory)
     csv_files = list(Path(current_sub_directory).rglob("*.csv"))
     excel_files = list(Path(current_sub_directory).rglob("*.xlsx"))
 
