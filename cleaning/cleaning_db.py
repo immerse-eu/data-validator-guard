@@ -91,7 +91,7 @@ def apply_changes(conn, table, change_type, row):
 
 def cleaning_db(path_db, system):
     db_path = next(os.path.join(path_db, file) for file in os.listdir(path_db) if file.startswith('validated'))
-    print("Cleaning database...\n", db_path)
+    print("Cleaning database...\n", os.path.basename(db_path))
 
     if system == 'maganamed':
         changes_df = get_changes_maganamed(CHANGES_FILE_PATH)

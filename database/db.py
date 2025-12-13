@@ -29,8 +29,8 @@ def connect_and_fetch_table(table_name):
         sql_connection.close()
 
 
-def replace_table(df, table_name):
-    print(f"Replacing {table_name}...")
+def update_table(df, table_name):
+    print(f"Updating {table_name}...")
     conn = sqlite3.connect(temporal_sql_db_path)
     df.to_sql(table_name, conn, if_exists="replace", index=False)
     conn.close()

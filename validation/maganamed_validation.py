@@ -57,7 +57,7 @@ output_csv_path = "validation_issues.csv"  # TODO: homologate to common "issues"
 
 
 def import_custom_csr_df_with_language_selection():
-    with open("./config/config.yaml", "r", encoding="utf-8") as path:  # TODO: change according to config yaml file
+    with open("./config/copy_config.yaml", "r", encoding="utf-8") as path:  # TODO: change according to config yaml file
         config = yaml.safe_load(path)
     csri = config['auxiliarFiles']['csri']
 
@@ -207,45 +207,53 @@ class MaganamedValidation:
 
         print(f" Number of question columns: {len(column_questionnaires)}")
         print(f" Responses with ≥80% completion: {len(filter_by_80_percent)}")
-        # print(self.magana_df[['participant_identifier', 'visit_name', 'count_responses', 'percentage_qre_completed']])
 
-        export_table(self.magana_df, table_name)
+        # Export csv/xlsx files (optional)
+        # export_table(self.magana_df, table_name)
         return self.magana_df
 
-    #  TODO: Clean and export verified Dx to new_db.
     def validate_primary_diagnosis(self, table_name):
         self.magana_df['visit_name'] = self.magana_df['visit_name'].str.strip()
 
-        filtering_baseline_and_screening = self.magana_df[
-            self.magana_df['visit_name'].isin(['Baseline (clinician)', 'Screening'])]
-        column_loinc_codes = [column for column in self.magana_df if column.startswith('F')]
+        mask_baseline_screening = self.magana_df['visit_name'].isin(['Baseline (clinician)', 'Screening'])
+        column_loinc_codes = [column for column in self.magana_df.columns if column.startswith('F')]
 
-        coincidences = []
-        for index, row in filtering_baseline_and_screening.iterrows():
+        for column_code in column_loinc_codes:
+            result_match_validation = f'{column_code}_matches_primary_Dx'
+            if result_match_validation not in self.magana_df.columns:
+                self.magana_df[result_match_validation] = (
+                    self.magana_df.groupby('participant_identifier')[column_code]
+                    .transform(lambda x: x.eq(x.iloc[0]).map({True: 'yes', False: 'no'}))
+                )
 
-            coincidence_columns = []
-            for column_code in column_loinc_codes:
-                result_match_validation = f'{column_code}_matches_primary_Dx'
-                if result_match_validation not in filtering_baseline_and_screening.columns:
-                    filtering_baseline_and_screening[result_match_validation] = (
-                        filtering_baseline_and_screening.groupby('participant_identifier')[
-                            column_code].transform(lambda x: (x == x.iloc[0]).map({True: 'yes', False: 'no'})))
-                if filtering_baseline_and_screening.loc[index, result_match_validation] == 'yes':
-                    coincidence_columns.append(column_code)
+        coincidences_series = []
+        for idx, row in self.magana_df.loc[mask_baseline_screening].iterrows():
+            coincidence_columns = [
+                col for col in column_loinc_codes
+                if self.magana_df.at[idx, f'{col}_matches_primary_Dx'] == 'yes'
+            ]
             if coincidence_columns:
-                coincidences.append(f'coincidences in {" ".join(coincidence_columns)}')
+                coincidences_series.append("coincidences in " + " ".join(coincidence_columns))
             else:
-                coincidences.append('no coincidences')
+                coincidences_series.append("no coincidences")
 
-        filtering_baseline_and_screening.loc[:, 'coincidences'] = coincidences
-        # filtering_baseline_and_screening['coincidences'] = coincidences
+        if 'coincidences' not in self.magana_df.columns:
+            self.magana_df['coincidences'] = pd.NA
+        self.magana_df.loc[mask_baseline_screening, 'coincidences'] = coincidences_series
 
-        # Issues:
+        # Prepare issues: baseline/screening rows with 'no coincidences'
+        filtering_baseline_and_screening = self.magana_df[mask_baseline_screening].copy()
         filtering_baseline_and_screening_issues = filtering_baseline_and_screening[
             filtering_baseline_and_screening['coincidences'] == "no coincidences"]
 
-        export_table(filtering_baseline_and_screening_issues, table_name)
-        export_table(filtering_baseline_and_screening, table_name)
+        # Export csv/xlsx files (optional)
+        # export_table(filtering_baseline_and_screening_issues, f"{table_name}_primary_diagnosis_issues")
+        # export_table(filtering_baseline_and_screening, f"{table_name}_primary_diagnosis")
+
+        if not filtering_baseline_and_screening_issues.empty:
+            self.magana_issues.append(filtering_baseline_and_screening_issues)
+
+        return self.magana_df
 
     def retrieve_saq_data(self):
         self.validate_completion_questionnaires('Service-Attachement-Questionnaire-(SAQ)')
@@ -266,7 +274,7 @@ class MaganamedValidation:
             columns={'visit_name_x': 'visit_name', 'visit_name_y': 'clean_visit_name'})
         merged_magana_df = merged_magana_df.drop(columns=['count_responses'])
         export_table(merged_magana_df, table_name='END_SAQ')
-        # return merged_magana_df
+        return merged_magana_df
 
     def validate_periods(self, table_name):
         self.magana_df['clean_visit_name'] = self.magana_df['visit_name'].str.strip().str.extract(r'^(\w+)',
@@ -293,9 +301,11 @@ class MaganamedValidation:
             lambda x: VALID_STUDY_PERIOD_IN_MONTHS.get(x, 0) * 30)
 
         self.magana_df['is_a_valid_period'] = (abs(
-            self.magana_df['estimated_duration_study_in_days'] - self.magana_df['duration_study_in_days']) <= 10).astype(bool)
+            self.magana_df['estimated_duration_study_in_days'] - self.magana_df['duration_study_in_days']) <= 10).map(
+            {True: 'Yes', False: 'No'})
 
-        export_table(self.magana_df, f'{table_name}')
+        # export_table(self.magana_df, f'{table_name}')
+        return self.magana_df
 
     def passed_validation(self, table_name):
         if len(self.magana_issues) == 0:

@@ -1,7 +1,7 @@
 import pandas as pd
 
 from config.config_loader import load_config_file
-from database.db import connect_and_fetch_table
+from database.db import connect_and_fetch_table, update_table
 from validation.general_validation import DataValidator
 from validation.maganamed_validation import (VALID_SITE_CODES_AND_CENTER_NAMES, MaganamedValidation,
                                              import_custom_csr_df_with_language_selection)
@@ -70,20 +70,23 @@ def run_rule_nine_and_twelve(table, table_name):
     print(f"\n\033[95m Validating {table_name} completion min 80% :\033[0m\n")
     rules_magana_validation.validate_completion_questionnaires(table_name)
     print(f"\n\033[95m Validating '{table_name}' correct Time selection (T1-T3):\033[0m\n")
-    rules_magana_validation.validate_periods(table_name)
+    updated_table = rules_magana_validation.validate_periods(table_name)
+    return updated_table
 
 
 # Rule 11. Correct diagnosis selection.
 def run_rule_eleven(table, table_name):
     print(f"\n\033[95m Validating from '{table_name}' correct diagnosis selection:\033[0m\n")
     rules_magana_validation = MaganamedValidation(table)
-    rules_magana_validation.validate_primary_diagnosis(table_name)
+    updated_table = rules_magana_validation.validate_primary_diagnosis(table_name)
+    return updated_table
 
 
 # Rule 13. End comparison
 def run_rule_thirteen(table, table_name):
     rules_magana_validation = MaganamedValidation(table)
-    rules_magana_validation.validate_completed_visits(table_name)
+    updated_table = rules_magana_validation.validate_completed_visits(table_name)
+    return updated_table
 
 
 # Auxiliar rule No. 13
@@ -135,16 +138,25 @@ def run_validation_maganamed():
     # -- Run Rule 9 and 12
     table_name = 'Service-Attachement-Questionnaire-(SAQ)'
     read_saq_df = connect_and_fetch_table(table_name)
-    run_rule_nine_and_twelve(read_saq_df, table_name)
+    updated_table_df = run_rule_nine_and_twelve(read_saq_df, table_name)
+    update_table(updated_table_df, table_name)
 
     # -- Run Rule 11: Correct diagnosis selection
     table_name = 'Diagnosis'
     read_diagnosis_df = connect_and_fetch_table(table_name)
-    run_rule_eleven(read_diagnosis_df, table_name)
+    updated_diagnosis = run_rule_eleven(read_diagnosis_df, table_name)
+    update_table(updated_diagnosis, table_name)
 
     # -- Run Rule 13: Completed visits
-    read_end_df = connect_and_fetch_table('End')
-    filter_end_df = filter_only_participants(read_end_df, 'participant_identifier')
+    table_name = 'End'
+    read_end_df = connect_and_fetch_table(table_name)
     read_saq_df = connect_and_fetch_table('Service-Attachement-Questionnaire-(SAQ)')
+
+    filter_end_df = filter_only_participants(read_end_df, 'participant_identifier')
     new_saq_df = run_auxiliary_rule_thirteen(read_saq_df)
-    run_rule_thirteen(filter_end_df, new_saq_df)
+    updated_end_df = run_rule_thirteen(filter_end_df, new_saq_df)
+
+    update_table(updated_end_df, table_name)
+    read_saq_df.drop(columns=['count_responses'])
+    update_table(read_end_df, 'Service-Attachement-Questionnaire-(SAQ)')
+
