@@ -4,9 +4,9 @@ from cleaning.general_id_cleaning import DataCleaning
 from config.config_loader import load_config_file
 from validation.general_validation import DataValidator
 from validation.maganamed_validation import VALID_SITE_CODES_AND_CENTER_NAMES
-from maganamed import run_validation_maganamed, execute_id_corrections_maganamed
+from maganamed import run_validation_maganamed
 from utils.rulebook import create_merged_esm_ids_rulebook
-from database.db import create_database, clone_database, list_tables_db, temporal_sql_db_path
+from database.db import create_database, list_tables_db
 from cleaning.cleaning_db import cleaning_db
 from movisensxs import run_movisensxs_validation
 
@@ -18,17 +18,17 @@ FIXES_PATH = load_config_file('reports', 'fixes')
 
 IDS_REFERENCE_PATH = load_config_file('auxiliarFiles', 'ids_reference')  # RedCap IDs from Anita
 IDS_TO_VERIFY_PATH = load_config_file('auxiliarFiles', 'ids_to_verify')  # Extracted IDs only from original files.
-ID_CLEANING_IMMERSE_PATH = load_config_file('updated_source', 'immerse_clean')  # Copy of files which are changing
+ID_CLEANING_IMMERSE_PATH = load_config_file('cleaning_processed_source', 'immerse_general')  # Copy of files which are changing
 
 RULEBOOK_IDS_MAGANAMED_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_maganamed')
 RULEBOOK_IDS_MOVISENS_ESM_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_esm')
 RULEBOOK_IDS_MOVISENS_FIDELITY_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_fidelity')
-RULEBOOK_IDS_MOVISENS_SENSING_PATH = load_config_file('','')
+# RULEBOOK_IDS_MOVISENS_SENSING_PATH = load_config_file('','')
 RULEBOOK_IDS_REDCAP_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_redcap_data_request')  # DataRequest31
 RULEBOOK_IDS_DMMH_PATH = load_config_file('auxiliarFiles', 'ids_rulebook_dmmh')
 
-TEMPORAL_SQL_DB_DIR = load_config_file('researchDB', 'db_path')  # DB to apply additions from validation
-FINAL_SQL_DB_DIR = load_config_file('researchDB', 'clean_db')    # DB to clean incidences from validation
+# Copy of all datasets from IMMERSE after ID cleaning
+SQL_DB_DIR = load_config_file('researchDB', 'clean_db')
 
 
 # General initial rule: ID validation
@@ -156,19 +156,18 @@ def execute_immerse_id_cleaning():
 
 def main():
 
-    # # --- Step 1: IDs clearance per system.
+    # --- Step 1: IDs clearance per system.
     execute_immerse_id_cleaning()
 
-    # # --- Step 2: Import generated files from step1 into a temporal DB.
-    create_database(TEMPORAL_SQL_DB_DIR, 'temporal_research_database')
+    # --- Step 2: Import generated files from step1 into a temporal DB and a cloned version to apply validation.
+    create_database(SQL_DB_DIR, 'temporal_research_database', 'final_research_database')
 
-    # # --- Step 3: Validation of Maganamed & MovisensXS from temporal DB.
+    # --- Step 3: Validation of Maganamed & MovisensXS from cloned  DB.
     run_validation_maganamed()
-    clone_database(temporal_sql_db_path, FINAL_SQL_DB_DIR, "validated_research_database")
-    cleaning_db(FINAL_SQL_DB_DIR, system='maganamed')
+    cleaning_db(SQL_DB_DIR, system='maganamed')
 
     run_movisensxs_validation()
-    cleaning_db(FINAL_SQL_DB_DIR, system='movisens')
+    cleaning_db(SQL_DB_DIR, system='movisens')
 
 
 if __name__ == "__main__":

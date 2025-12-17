@@ -11,9 +11,6 @@ from cleaning.general_id_cleaning import DataCleaning
 CSRI_list = ["CSRI", "CSRI_GE", "CSRI_BE", "CSRI_SK"]
 valid_center_names = VALID_SITE_CODES_AND_CENTER_NAMES.values()
 
-TEMPORAL_SQL_DB_DIR = load_config_file('researchDB', 'db_path')
-FINAL_SQL_DB_DIR = load_config_file('researchDB', 'clean_db')
-
 
 def run_general_validation(table):
     print(f"\n\033[95m Validating General rules:\033[0m\n")
@@ -85,8 +82,7 @@ def run_rule_eleven(table, table_name):
 # Rule 13. End comparison
 def run_rule_thirteen(table, table_name):
     rules_magana_validation = MaganamedValidation(table)
-    updated_table = rules_magana_validation.validate_completed_visits(table_name)
-    return updated_table
+    return rules_magana_validation.validate_completed_visits(table_name)
 
 
 # Auxiliar rule No. 13
@@ -157,6 +153,5 @@ def run_validation_maganamed():
     updated_end_df = run_rule_thirteen(filter_end_df, new_saq_df)
 
     update_table(updated_end_df, table_name)
-    read_saq_df.drop(columns=['count_responses'])
-    update_table(read_end_df, 'Service-Attachement-Questionnaire-(SAQ)')
-
+    read_saq_df = read_saq_df.drop(columns=['count_responses'])
+    update_table(read_saq_df, 'Service-Attachement-Questionnaire-(SAQ)')

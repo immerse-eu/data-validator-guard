@@ -7,12 +7,12 @@ from sqlite3 import DatabaseError, Error
 from config.config_loader import load_config_file
 from pandas.errors import DatabaseError
 
-TEMPORAL_SQL_DB_DIR = load_config_file('researchDB', 'db_path')
-temporal_sql_db_path = os.path.join(TEMPORAL_SQL_DB_DIR, '.db')
+SQL_DB_DIR = load_config_file('researchDB', 'clean_db')
+final_sql_db_path = os.path.join(SQL_DB_DIR, '.db')
 
 
 def connect_and_fetch_table(table_name):
-    sql_connection = sqlite3.connect(temporal_sql_db_path)
+    sql_connection = sqlite3.connect(final_sql_db_path)
     print("Connection established.")
 
     try:
@@ -31,7 +31,7 @@ def connect_and_fetch_table(table_name):
 
 def update_table(df, table_name):
     print(f"Updating {table_name}...")
-    conn = sqlite3.connect(temporal_sql_db_path)
+    conn = sqlite3.connect(final_sql_db_path)
     df.to_sql(table_name, conn, if_exists="replace", index=False)
     conn.close()
 
@@ -74,21 +74,21 @@ def retrieve_input_files(path, connect):
                 import_data_into_sql_lite(connect, filename, csv_data)
 
 
-def create_database(sql_lite_database_directory, database_name):
+def create_database(sql_lite_database_directory, temporal_name_db, final_name_db):
 
     immerse_directory = {
         'maganamed_path': load_config_file('immerse_load', 'maganamed'),
-        'movisens_esm_path': load_config_file('immerse_load', 'movisens_esm'),
-        'movisens_sensing_path': load_config_file('immerse_load', 'movisens_sensing'),
-        'movisens_fidelity_path': load_config_file('immerse_load', 'redcap_id_summary'),
-        'dmmh_app_path': load_config_file('immerse_load', 'dmmh_momentapp'),
-        'dmmh_summary_path': load_config_file('immerse_load', 'dmmh_logins'),
-        'redcap_summary_path': load_config_file('immerse_load', 'redcap_id_summary'),
+        # 'movisens_esm_path': load_config_file('immerse_load', 'movisens_esm'),
+        # 'movisens_sensing_path': load_config_file('immerse_load', 'movisens_sensing'),
+        # 'movisens_fidelity_path': load_config_file('immerse_load', 'redcap_id_summary'),
+        # 'dmmh_app_path': load_config_file('immerse_load', 'dmmh_momentapp'),
+        # 'dmmh_summary_path': load_config_file('immerse_load', 'dmmh_logins'),
+        # 'redcap_summary_path': load_config_file('immerse_load', 'redcap_id_summary'),
     }
 
     now = datetime.datetime.now()
     timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
-    complete_db_filename = f"{database_name}_{timestamp}.db"
+    complete_db_filename = f"{temporal_name_db}_{timestamp}.db"
 
     sql_lite_database_path = os.path.join(sql_lite_database_directory, f'{complete_db_filename}')
     print("database path: ", sql_lite_database_path)
@@ -108,14 +108,16 @@ def create_database(sql_lite_database_directory, database_name):
         connect.commit()
         connect.close()
 
+    clone_database(sql_lite_database_path, final_name_db)
 
-def clone_database(original_path, new_path, new_name):
-    print("cloning database...")
-    os.makedirs(new_path, exist_ok=True)
+
+def clone_database(original_path, new_name):
+    print("\ncloning database...")
+    base_path = os.path.dirname(original_path)
     now = datetime.datetime.now()
     timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
     complete_db_filename = f"{new_name}_{timestamp}.db"
-    new_path = os.path.join(new_path, complete_db_filename)
+    new_path = os.path.join(base_path, complete_db_filename)
     if os.path.exists(new_path):
         print(f"Database already exists at: {new_path}, overwriting.")
     with sqlite3.connect(original_path) as source_conn:
@@ -125,7 +127,7 @@ def clone_database(original_path, new_path, new_name):
 
 
 def list_tables_db():
-    abs_path = os.path.abspath(temporal_sql_db_path)
+    abs_path = os.path.abspath(final_sql_db_path)
     if not os.path.exists(abs_path):
         raise FileNotFoundError(f"Database file not found: {abs_path}")
     conn = sqlite3.connect(abs_path)
