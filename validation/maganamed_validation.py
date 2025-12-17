@@ -212,44 +212,101 @@ class MaganamedValidation:
         # export_table(self.magana_df, table_name)
         return self.magana_df
 
-    def validate_primary_diagnosis(self, table_name):
+    def validate_primary_diagnosis(self, table_name, export=True):
         self.magana_df['visit_name'] = self.magana_df['visit_name'].str.strip()
 
         mask_baseline_screening = self.magana_df['visit_name'].isin(['Baseline (clinician)', 'Screening'])
-        column_loinc_codes = [column for column in self.magana_df.columns if column.startswith('F')]
+        baseline_idx = self.magana_df.loc[mask_baseline_screening].index
+        column_loinc_codes = [col for col in self.magana_df.columns if str(col).upper().startswith('F')]
 
         for column_code in column_loinc_codes:
             result_match_validation = f'{column_code}_matches_primary_Dx'
             if result_match_validation not in self.magana_df.columns:
-                self.magana_df[result_match_validation] = (
-                    self.magana_df.groupby('participant_identifier')[column_code]
-                    .transform(lambda x: x.eq(x.iloc[0]).map({True: 'yes', False: 'no'}))
+                self.magana_df[result_match_validation] = pd.NA
+
+        # helper: get family group from a code string like 'F33' or 'F20-29' -> returns 'F30' or 'F20'
+        def _family_group_from_code(code_str):
+            if not isinstance(code_str, str):
+                return pd.NA
+            m = pd.Series([code_str.upper()]).str.extract(r'(F)(\d+)', expand=True)
+            if m.isna().any().any():
+                return pd.NA
+            try:
+                num = int(m.iloc[0, 1])
+            except Exception:
+                return pd.NA
+            group = (num // 10) * 10
+            return f'F{group}'
+
+        if len(baseline_idx) > 0 and 'diagn_primary' in self.magana_df.columns and column_loinc_codes:
+            diagn_series = self.magana_df.loc[baseline_idx, 'diagn_primary'].astype(str).str.upper()
+            diagn_first = diagn_series.str.extract(r'(F\d+)', expand=False)
+            diagn_group = diagn_first.apply(lambda x: _family_group_from_code(x) if pd.notna(x) else pd.NA)
+
+            # For each F-column compute matches only for baseline rows
+            for column_code in column_loinc_codes:
+                result_match_validation = f'{column_code}_matches_primary_Dx'
+
+                col_family_raw = str(column_code).upper()
+                col_family_group = _family_group_from_code(col_family_raw)
+                if pd.isna(col_family_group):
+                    continue
+
+                # presence indicator in the column for baseline rows: non-empty, non-zero, not NaN
+                col_values = self.magana_df.loc[baseline_idx, column_code]
+                presence = ~(
+                        col_values.isna() |
+                        col_values.astype(str).str.strip().eq('') |
+                        col_values.astype(str).str.strip().eq('0') |
+                        col_values.astype(str).str.strip().str.lower().eq('nan')
                 )
 
-        coincidences_series = []
-        for idx, row in self.magana_df.loc[mask_baseline_screening].iterrows():
-            coincidence_columns = [
-                col for col in column_loinc_codes
-                if self.magana_df.at[idx, f'{col}_matches_primary_Dx'] == 'yes'
-            ]
-            if coincidence_columns:
-                coincidences_series.append("coincidences in " + " ".join(coincidence_columns))
-            else:
-                coincidences_series.append("no coincidences")
+                # build matches for baseline rows
+                matches = []
+                for idx_i, dfam in diagn_group.items():
+                    if pd.isna(dfam):
+                        matches.append(pd.NA)
+                    else:
+                        if presence.loc[idx_i] and dfam == col_family_group:
+                            matches.append('yes')
+                        else:
+                            matches.append('no')
+
+                self.magana_df.loc[baseline_idx, result_match_validation] = pd.Series(matches,
+                                                                                      index=baseline_idx).values
+
+        # Build the 'coincidences' column for baseline/screening rows only
+        def _build_coincidence_string(cols):
+            if not cols:
+                return 'no coincidences'
+            return 'coincidences with ' + ','.join(cols)
+
+        coincidences = []
+        for idx in baseline_idx:
+            matched_cols = []
+            for col in column_loinc_codes:
+                val = self.magana_df.at[idx, f'{col}_matches_primary_Dx']
+                if pd.notna(val) and val == 'yes':
+                    matched_cols.append(col)
+            coincidences.append(_build_coincidence_string(matched_cols))
 
         if 'coincidences' not in self.magana_df.columns:
             self.magana_df['coincidences'] = pd.NA
-        self.magana_df.loc[mask_baseline_screening, 'coincidences'] = coincidences_series
+        self.magana_df.loc[baseline_idx, 'coincidences'] = coincidences
 
-        # Prepare issues: baseline/screening rows with 'no coincidences'
-        filtering_baseline_and_screening = self.magana_df[mask_baseline_screening].copy()
+        # Prepare issues subset: baseline rows with 'no coincidences'
+        filtering_baseline_and_screening = self.magana_df.loc[mask_baseline_screening].copy()
         filtering_baseline_and_screening_issues = filtering_baseline_and_screening[
-            filtering_baseline_and_screening['coincidences'] == "no coincidences"]
+            filtering_baseline_and_screening['coincidences'] == "no coincidences"
+            ]
 
-        # Export csv/xlsx files (optional)
-        # export_table(filtering_baseline_and_screening_issues, f"{table_name}_primary_diagnosis_issues")
-        # export_table(filtering_baseline_and_screening, f"{table_name}_primary_diagnosis")
+        # Optional exports:
+        if export:
+            export_table(self.magana_df, f"{table_name}_primary_diagnosis_full")
+            export_table(filtering_baseline_and_screening, f"{table_name}_primary_diagnosis_baseline_screening")
+            export_table(filtering_baseline_and_screening_issues, f"{table_name}_primary_diagnosis_issues")
 
+        # Store issues
         if not filtering_baseline_and_screening_issues.empty:
             self.magana_issues.append(filtering_baseline_and_screening_issues)
 
