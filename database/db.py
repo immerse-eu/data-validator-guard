@@ -8,7 +8,7 @@ from config.config_loader import load_config_file
 from pandas.errors import DatabaseError
 
 SQL_DB_DIR = load_config_file('researchDB', 'clean_db')
-final_sql_db_path = os.path.join(SQL_DB_DIR, '.db')
+final_sql_db_path = os.path.join(SQL_DB_DIR, '.db')  # TODO: provide db filename
 
 
 def connect_and_fetch_table(table_name):
@@ -78,12 +78,12 @@ def create_database(sql_lite_database_directory, temporal_name_db, final_name_db
 
     immerse_directory = {
         'maganamed_path': load_config_file('immerse_load', 'maganamed'),
-        # 'movisens_esm_path': load_config_file('immerse_load', 'movisens_esm'),
-        # 'movisens_sensing_path': load_config_file('immerse_load', 'movisens_sensing'),
-        # 'movisens_fidelity_path': load_config_file('immerse_load', 'redcap_id_summary'),
-        # 'dmmh_app_path': load_config_file('immerse_load', 'dmmh_momentapp'),
-        # 'dmmh_summary_path': load_config_file('immerse_load', 'dmmh_logins'),
-        # 'redcap_summary_path': load_config_file('immerse_load', 'redcap_id_summary'),
+        'movisens_esm_path': load_config_file('immerse_load', 'movisens_esm'),
+        'movisens_sensing_path': load_config_file('immerse_load', 'movisens_sensing'),
+        'movisens_fidelity_path': load_config_file('immerse_load', 'redcap_id_summary'),
+        'dmmh_app_path': load_config_file('immerse_load', 'dmmh_momentapp'),
+        'dmmh_summary_path': load_config_file('immerse_load', 'dmmh_logins'),
+        'redcap_summary_path': load_config_file('immerse_load', 'redcap_id_summary'),
     }
 
     now = datetime.datetime.now()
