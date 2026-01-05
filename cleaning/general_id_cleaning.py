@@ -111,7 +111,7 @@ class DataCleaning:
         self.assign_id_to_T1 = set()
         self.assign_id_to_T2 = set()
         self.assign_id_to_T3 = set()
-        self.debug = debug
+        self.debug = True
 
     # ---> Step 2.
     # This function identifies the KEYs to apply changes (add, delete, update, etc...) in original data.
@@ -140,14 +140,17 @@ class DataCleaning:
                 participant_number = row.get('participant_number')
                 visit_code = row.get('VisitCode')
                 site_code = row.get('SiteCode')
+                country = row.get('Country')
+
                 # Normalized elements
                 participant_number = _normalize_key(participant_number)
                 visit_code = _normalize_key(visit_code)
                 site_code = _normalize_key(site_code)
+
                 if key_norm:
                     key = (key_norm, participant_number, visit_code, site_code)
                 else:
-                    key = (participant_number, visit_code)
+                    key = (participant_number, country, visit_code)  # key for 'add' actions
 
             elif any(value in system for value in alternative_systems):
                 key = key_norm
@@ -195,10 +198,10 @@ class DataCleaning:
 
         if self.debug:
             print(f"DEBUG: "
-                  f"delete_ids={len(self.delete_ids)} "
-                  f"update_ids={len(self.update_ids)} "
-                  f"add_ids={len(self.add_ids)} "
-                  f"merge_ids={len(self.merge_ids)}")
+                  f"delete_ids={len(self.delete_ids)}\n{self.delete_ids}"
+                  f"\nupdate_ids={len(self.update_ids)}\n{self.update_ids} "
+                  f"\nadd_ids={len(self.add_ids)}\n{self.add_ids}"
+                  f"\nmerge_ids={len(self.merge_ids)}\n{self.merge_ids} ")
 
     # Apply changes from rulebook
     def _apply_changes_from_rulebook(self, current_df, participant_identifier, participant_number, filename, system):
@@ -218,6 +221,7 @@ class DataCleaning:
         if self.delete_ids:
             if "movisens_esm" in system:
                 # TODO: Verify functionality
+                print("Debugging... deleting ids", self.delete_ids)
                 current_immerse_df = current_immerse_df[~current_immerse_df.apply(
                     lambda row: (row.get(participant_identifier),
                                  row.get(participant_number),
@@ -249,10 +253,12 @@ class DataCleaning:
 
                 def lookup_row(row):
                     key = (
-                        _normalize_key(row.get(participant_identifier)),
+                        # _normalize_key(row.get(participant_identifier)),
                         _normalize_key(row.get(participant_number)),
+                        row.get('Country'),
                         _normalize_key(row.get('VisitCode')),
-                        _normalize_key(row.get('SiteCode'))
+                        # _normalize_key(row.get('SiteCode')),
+
                     )
                     return normalize_ids.get(key, row.get('correct_participant_id'))
 
@@ -525,12 +531,12 @@ class DataCleaning:
             # Change float to int values
             if 'VisitCode' in merged_ids_rulebook_df.columns:
                 merged_ids_rulebook_df['VisitCode'] = merged_ids_rulebook_df['VisitCode'].apply(
-                    lambda x: int(x) if isinstance(x, float) and not pd.isnull(x) else '')
+                    lambda x: int(x) if isinstance(x, float) and not pd.isnull(x) else x)
 
             # # Change float to int values
             if 'SiteCode' in merged_ids_rulebook_df.columns:
-                merged_ids_rulebook_df['SiteCode'] = merged_ids_rulebook_df['SiteCode'].apply(
-                    lambda x: int(x) if isinstance(x, float) and not pd.isnull(x) else x)
+                merged_ids_rulebook_df['SiteCode'] = pd.to_numeric(merged_ids_rulebook_df['SiteCode'],
+                                                                   errors='coerce').astype('Int64')
 
         # Option 1: Use a copy of the rulebook with the new column naming convention.
         updated_rulebook_df = merged_ids_rulebook_df.copy()
