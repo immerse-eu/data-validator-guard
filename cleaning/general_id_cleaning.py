@@ -1,8 +1,6 @@
 import os
 import traceback
 import warnings
-from typing import Any, Optional, Union, Dict
-
 import pandas as pd
 from pathlib import Path
 from utils.rulebook import get_columns_from_id_reference
@@ -24,8 +22,8 @@ system_configs = {
         'folder': 'cleaned_ids_maganamed',
     },
     'movisens_esm': {
-        'column_id': 'participant_identifier',
-        'column_id_number': 'participant_number',
+        'column_id': 'participant_id',
+        'column_id_number': 'participant_movi_nr',
         'folder': 'cleaned_ids_movisens_esm',
     },
     'movisens_fidelity': {
@@ -59,42 +57,19 @@ rename_fidelity_columns_dict = {
 
 
 # Small helpers kept local and minimal to avoid changing external behaviour
-def _normalize_key(v):
-    if v is None:
+def _normalize_key(x):
+    if x is None or pd.isna(x):
         return None
-    try:
-        if pd.isna(v):
-            return None
-    except Exception:
-        pass
-    return str(v).strip()
+    return str(x).strip()
 
 
-def _normalize_numberish(v):
-    """Turn NaN->None, 1.0->1, numeric strings to numbers when possible, else stripped string."""
-    if v is None:
+def _normalize_numberish(x):
+    if x is None or pd.isna(x):
         return None
     try:
-        if pd.isna(v):
-            return None
-    except Exception:
-        pass
-    if isinstance(v, float):
-        if abs(v - int(v)) < 1e-9:
-            return int(v)
-        return v
-    if isinstance(v, int):
-        return v
-    if isinstance(v, str):
-        s = v.strip()
-        try:
-            f = float(s)
-            if abs(f - int(f)) < 1e-9:
-                return int(f)
-            return f
-        except Exception:
-            return s
-    return v
+        return int(float(x))
+    except (ValueError, TypeError):
+        return None
 
 
 class DataCleaning:
@@ -220,13 +195,51 @@ class DataCleaning:
         # Case 1: Deletion IDs
         if self.delete_ids:
             if "movisens_esm" in system:
-                # TODO: Verify functionality
                 print("Debugging... deleting ids", self.delete_ids)
-                current_immerse_df = current_immerse_df[~current_immerse_df.apply(
-                    lambda row: (row.get(participant_identifier),
-                                 row.get(participant_number),
-                                 row.get('VisitCode'),
-                                 row.get('SiteCode')) in self.delete_ids, axis=1)]
+
+                delete_keys_3 = set()
+                delete_keys_4 = set()
+
+                for key in self.delete_ids:
+                    if len(key) == 3:
+                        delete_keys_3.add((
+                            _normalize_key(key[0]),
+                            _normalize_key(key[1]),
+                            _normalize_numberish(key[2]),
+                        ))
+                    elif len(key) == 4:
+                        delete_keys_4.add((
+                            _normalize_key(key[0]),
+                            _normalize_key(key[1]),
+                            _normalize_numberish(key[2]),
+                            _normalize_numberish(key[3]),
+                        ))
+                    else:
+                        raise ValueError(f"Invalid delete key length: {key}")
+
+                def normalize_keys_deletion(row):
+                    key4 = (
+                        _normalize_key(row.get(participant_identifier)),
+                        _normalize_key(row.get(participant_number)),
+                        _normalize_numberish(row.get('VisitCode')),
+                        _normalize_numberish(row.get('SiteCode')),
+                    )
+
+                    key3 = (
+                        _normalize_key(row.get(participant_number)),
+                        _normalize_key(row.get('Country')),
+                        _normalize_numberish(row.get('VisitCode')),
+                    )
+
+                    return key4 in delete_keys_4 or key3 in delete_keys_3
+
+                mask = current_immerse_df.apply(normalize_keys_deletion, axis=1)
+                current_immerse_df = current_immerse_df[~mask]
+
+                print("Delete keys (3):", len(delete_keys_3))
+                print("Delete keys (4):", len(delete_keys_4))
+                print("Matched rows:", mask.sum())
+
             elif 'movisens_fidelity' in system and primary_identifier:
                 current_immerse_df = current_immerse_df[
                        ~current_immerse_df.apply(lambda row: _normalize_key(row.get(primary_identifier)) in self.delete_ids, axis=1)]
@@ -276,7 +289,12 @@ class DataCleaning:
 
             if "movisens_esm" in system:
                 normalize_ids = {
-                    tuple(_normalize_key(x) for x in k): value
+                    (
+                        _normalize_key(k[0]),
+                        _normalize_key(k[1]),
+                        _normalize_numberish(k[2]),
+                        _normalize_numberish(k[3]),
+                    ): value
                     for k, value in self.update_ids.items()
                 }
 
@@ -284,11 +302,11 @@ class DataCleaning:
                     key = (
                         _normalize_key(row.get(participant_identifier)),
                         _normalize_key(row.get(participant_number)),
-                        _normalize_key(row.get('VisitCode')),
-                        _normalize_key(row.get('SiteCode'))
+                        _normalize_numberish(row.get('VisitCode')),
+                        _normalize_numberish(row.get('SiteCode'))
                     )
                     return normalize_ids.get(key, row.get('correct_participant_id'))
-                current_immerse_df['correct_participant_id'] = current_immerse_df.apply(lookup_row, axis=1)
+                current_immerse_df['correct_participant_id'] = (current_immerse_df.apply(lookup_row, axis=1))
 
             elif "maganamed" in system:
                 # Apply corrected id (prefer structured dicts when present)
